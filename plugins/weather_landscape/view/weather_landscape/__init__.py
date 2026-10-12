@@ -1,0 +1,1 @@
+# weather_landscape view package init

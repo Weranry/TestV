@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Plugin explorer</title>
+<style>
+
+/* ============================================================
+   Geist 设计令牌（唯一来源：面板、用户控制台、登录/注册/找回密码/首次改密页共用）
+   ------------------------------------------------------------
+   --ds-* 色阶/阴影/焦点环/动效全部取自 Vercel Geist 官方文档页面加载的 CSS bundle
+   （vercel.com/geist/*）。浅色在 :root，深色在 .dark —— .dark 挂在 <html> 上，
+   由 <script>(function(){try{var t=localStorage.getItem('ink_theme');if(t==='dark'||(t!=='light'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.className+=' dark'}catch(e){}})();</script> 在任何绘制之前定妥，因此不会闪一下白底再变黑。
+
+   .dark 与 :root 的特异性相同（都是 0,1,0），靠**源序在后**取胜，所以 .dark 必须写在 :root 之后。
+
+   下半段是**语义别名**（--bg/--fg/--line/...）：组件层只认这些名字，改主题时只动上面的原始令牌。
+   别名一律写成 var(--ds-*) 的引用而不是字面量 —— 自定义属性在使用时才求值，.dark 覆盖原始令牌后
+   别名自动跟着变，不必在 .dark 里再抄一遍。
+   ============================================================ */
+:root{
+  /* ---------- 背景（Background 1 = 默认背景，Background 2 = 次级背景） ---------- */
+  --ds-background-100:#fff;
+  --ds-background-200:#fafafa;
+
+  /* ---------- 灰阶 gray 100–1000 ---------- */
+  --ds-gray-100:#f2f2f2;--ds-gray-200:#ebebeb;--ds-gray-300:#e6e6e6;--ds-gray-400:#eaeaea;
+  --ds-gray-500:#c9c9c9;--ds-gray-600:#a8a8a8;--ds-gray-700:#8f8f8f;--ds-gray-800:#7d7d7d;
+  --ds-gray-900:#4d4d4d;--ds-gray-1000:#171717;
+
+  /* ---------- 灰阶 alpha（黑透明）：边框与 hover 底一律用它，深色下自动换成白透明 ---------- */
+  --ds-gray-alpha-100:#0000000d;--ds-gray-alpha-200:#00000015;--ds-gray-alpha-300:#0000001a;
+  --ds-gray-alpha-400:#00000014;--ds-gray-alpha-500:#00000036;--ds-gray-alpha-600:#0000003d;
+  --ds-gray-alpha-700:#00000070;--ds-gray-alpha-800:#00000082;--ds-gray-alpha-900:#000000b3;
+  --ds-gray-alpha-1000:#000000e8;
+
+  /* ---------- 强调色 Blue（Vercel 蓝） ---------- */
+  --ds-blue-100:#f0f7ff;--ds-blue-200:#eaf4ff;--ds-blue-300:#e0efff;--ds-blue-400:#cce7ff;
+  --ds-blue-500:#97ccff;--ds-blue-600:#51aeff;--ds-blue-700:#0070f7;--ds-blue-800:#005edc;
+  --ds-blue-900:#0064e2;--ds-blue-1000:#002453;
+
+  /* ---------- 状态色：红 / 琥珀 / 绿 / 青 / 紫 / 粉 ---------- */
+  --ds-red-100:#ffeef0;--ds-red-200:#ffe9ea;--ds-red-300:#ffe4e5;--ds-red-400:#ffd8d7;
+  --ds-red-500:#ffb5b6;--ds-red-600:#ff6a6e;--ds-red-700:#fc0035;--ds-red-800:#e70022;
+  --ds-red-900:#d60020;--ds-red-1000:#46000c;
+
+  --ds-amber-100:#fff6e1;--ds-amber-200:#fff4d4;--ds-amber-300:#fff1c8;--ds-amber-400:#ffdd84;
+  --ds-amber-500:#ffc85e;--ds-amber-600:#fa0;--ds-amber-700:#ffb200;--ds-amber-800:#f90;
+  --ds-amber-900:#a64f00;--ds-amber-1000:#541c00;
+
+  --ds-green-100:#ecfdec;--ds-green-200:#e5fce7;--ds-green-300:#d3fad1;--ds-green-400:#b9f5bc;
+  --ds-green-500:#82eb8d;--ds-green-600:#4ce15e;--ds-green-700:#28a948;--ds-green-800:#279141;
+  --ds-green-900:#107d32;--ds-green-1000:#00370d;
+
+  --ds-teal-600:#00e2c4;--ds-teal-700:#00a694;
+  --ds-purple-600:#c77dff;--ds-purple-700:#9f00f4;
+  --ds-pink-600:#f97ea7;--ds-pink-700:#f22782;
+
+  /* ---------- 阴影（官方六级 + 语义组合） ---------- */
+  --ds-shadow-2xs:0px 1px 1px #0000000a;
+  --ds-shadow-xs:0px 1px 2px #0000000a;
+  --ds-shadow-small:0px 2px 2px #0000000a;
+  --ds-shadow-medium:0px 2px 2px #0000000a,0px 8px 8px -8px #0000000a;
+  --ds-shadow-large:0px 2px 2px #0000000a,0px 8px 16px -4px #0000000a;
+  --ds-shadow-xl:0px 1px 1px #00000005,0px 4px 8px -4px #0000000a,0px 16px 24px -8px #0000000f;
+  --ds-shadow-2xl:0px 1px 1px #00000005,0px 8px 16px -4px #0000000a,0px 24px 32px -8px #0000000f;
+
+  /* ---------- 圆角 / 尺寸 / 间距 ---------- */
+  --geist-radius:6px;
+  --geist-radius-surface:12px;
+  --geist-radius-fullscreen:16px;
+  --geist-space:4px;--geist-space-2x:8px;--geist-space-3x:12px;--geist-space-4x:16px;
+  --geist-space-6x:24px;--geist-space-8x:32px;
+  --geist-size-small:32px;--geist-size-medium:36px;--geist-size-large:40px;
+
+  /* ---------- 焦点环 / 动效 / 层级 ---------- */
+  --ds-focus-color:var(--ds-blue-900);
+  --ds-focus-ring:0 0 0 2px var(--ds-background-100),0 0 0 4px var(--ds-focus-color);
+  --ds-motion-swift:cubic-bezier(.175,.885,.32,1.1);
+  --motion-fast:.15s var(--ds-motion-swift);
+  --motion-pop:.2s var(--ds-motion-swift);
+  --ds-z-drawer:200;--ds-z-modal:300;--ds-z-menu:2001;--ds-z-toast:5000;--ds-z-tooltip:99999;
+
+  /* ============ 语义别名（组件层只认这些） ============ */
+  --sans:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"Segoe UI Mono",Menlo,Monaco,Consolas,"Liberation Mono","Courier New",monospace;
+
+  --bg:var(--ds-background-200);        /* 页面底色 */
+  --fg:var(--ds-gray-1000);             /* 主文字 */
+  --fg2:var(--ds-gray-900);             /* 次级文字 */
+  --fg3:var(--ds-gray-700);             /* 三级文字 / 图标 */
+  --faint:var(--ds-gray-600);
+  --line:var(--ds-gray-alpha-400);      /* 分隔线 / 控件描边 */
+  --line-soft:var(--ds-gray-alpha-100); /* 表格行间细分隔 */
+  --soft:var(--ds-gray-alpha-100);      /* hover 底 */
+  --soft-2:var(--ds-gray-alpha-200);    /* 选中底（Geist 侧栏激活态就是这一档） */
+  --track:var(--ds-gray-400);
+
+  --blue:var(--ds-blue-700);--blue-deep:var(--ds-blue-800);--blue-soft:var(--ds-blue-300);
+  --red:var(--ds-red-700);--red-deep:var(--ds-red-800);
+  --green:var(--ds-green-700);
+  --orange:var(--ds-amber-700);--orange-deep:var(--ds-amber-900);--orange-soft:var(--ds-amber-100);
+  --violet:var(--ds-purple-700);
+
+  --ring:0 0 0 1px var(--line);
+  /* 遮罩层：浅色下压暗页面、深色下页面本来就是黑的，得压得更狠一点才看得出「页面被盖住」 */
+  --scrim:rgba(23,23,23,.45);
+  /* 顶栏底色（半透明 + 高斯模糊，滚动时内容从底下透出来）：与页面底色同系，带一点点透明度 */
+  --topbar:rgba(250,250,250,.85);
+  --card-shadow:0 0 0 1px var(--line),var(--ds-shadow-2xs);
+  --sh-1:0 0 0 1px var(--line),var(--ds-shadow-2xs);
+  --sh-2:0 0 0 1px var(--line),0 1px 1px #00000005,0 4px 8px -4px #0000000a,0 16px 24px -8px #0000000f;
+  --sh-modal:0 0 0 1px var(--line),0 1px 1px #00000005,0 8px 16px -4px #0000000a,0 24px 32px -8px #0000000f;
+  --r-sm:var(--geist-radius);--r-md:var(--geist-radius-surface);--r-lg:var(--geist-radius-fullscreen);
+}
+/* ---------- 深色：只覆盖原始令牌，别名自动跟着翻 ---------- */
+.dark{
+  --ds-background-100:#000;
+  --ds-background-200:#000;
+
+  --ds-gray-100:#1a1a1a;--ds-gray-200:#1f1f1f;--ds-gray-300:#292929;--ds-gray-400:#2e2e2e;
+  --ds-gray-500:#454545;--ds-gray-600:#878787;--ds-gray-700:#8f8f8f;--ds-gray-800:#7d7d7d;
+  --ds-gray-900:#a0a0a0;--ds-gray-1000:#ededed;
+
+  --ds-gray-alpha-100:#ffffff0f;--ds-gray-alpha-200:#ffffff17;--ds-gray-alpha-300:#ffffff1a;
+  --ds-gray-alpha-400:#ffffff14;--ds-gray-alpha-500:#ffffff36;--ds-gray-alpha-600:#ffffff3d;
+  --ds-gray-alpha-700:#ffffff70;--ds-gray-alpha-800:#ffffff82;--ds-gray-alpha-900:#ffffffb3;
+  --ds-gray-alpha-1000:#ffffffeb;
+
+  --ds-blue-100:#06193a;--ds-blue-200:#022248;--ds-blue-300:#002f62;--ds-blue-400:#003771;
+  --ds-blue-500:#004287;--ds-blue-600:#0090ff;--ds-blue-700:#0071f6;--ds-blue-800:#005fd8;
+  --ds-blue-900:#50a8ff;--ds-blue-1000:#ebf6ff;
+
+  --ds-red-100:#460008;--ds-red-600:#ff3a41;--ds-red-700:#f13242;--ds-red-800:#e2162a;
+  --ds-red-900:#ff5e63;--ds-red-1000:#ffd5d8;
+
+  --ds-amber-100:#291800;--ds-amber-600:#e99c00;--ds-amber-700:#ffb200;--ds-amber-800:#f90;
+  --ds-amber-900:#f90;--ds-amber-1000:#fff3d9;
+
+  --ds-green-100:#00330a;--ds-green-600:#4ce15e;--ds-green-700:#00ab3e;--ds-green-800:#009335;
+  --ds-green-900:#00ca52;--ds-green-1000:#ddffd8;
+
+  --ds-teal-600:#00e2c4;--ds-teal-700:#00a794;
+  --ds-purple-600:#c77dff;--ds-purple-700:#9440d5;
+  --ds-pink-600:#b90056;--ds-pink-700:#f12b82;
+
+  --ds-focus-color:var(--ds-blue-900);  /* 深色 blue-900 = #50a8ff */
+  --ds-focus-ring:0 0 0 2px var(--ds-background-100),0 0 0 4px var(--ds-focus-color);
+  --scrim:rgba(0,0,0,.7);
+  --topbar:rgba(0,0,0,.72);
+}
+
+/* ============ 共享 UI：浮层通知 / 弹窗 / 按钮态 ============ */
+/* 滚动条统一隐藏：滚动本身照常可用（滚轮 / 触控板 / 键盘 / 触摸都不受影响），只是不画那根条。
+   面板里存在多处内部滚动区（侧栏、弹窗、卡片背面），滚动条时有时无会让内容区宽度来回跳，
+   同一次会话里也会出现两种粗细的条，故收口到这一处、所有页面口径一致。 */
+*{scrollbar-width:none;-ms-overflow-style:none}
+*::-webkit-scrollbar{width:0;height:0;display:none}
+.toasts{position:fixed;top:16px;right:16px;z-index:500;display:flex;flex-direction:column;gap:10px;width:340px;max-width:calc(100vw - 32px);pointer-events:none}
+.toast{display:flex;align-items:flex-start;gap:10px;padding:12px 13px;border-radius:12px;background:var(--ds-background-100);color:var(--fg,#171717);font-size:13px;line-height:1.5;box-shadow:var(--sh-2,0 0 0 1px rgba(0,0,0,.08),0 4px 8px rgba(0,0,0,.06));pointer-events:auto;animation:toastIn .22s cubic-bezier(.2,.8,.3,1)}
+.toast.out{animation:toastOut .16s ease forwards}
+@keyframes toastIn{from{opacity:0;transform:translateX(14px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes toastOut{to{opacity:0;transform:translateX(14px) scale(.98)}}
+.toast .ic{width:18px;height:18px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;margin-top:1px}
+/* success 走 link 蓝、info 走中性灰：两者都取蓝的话「成功」与「提示」在视觉上分不开 */
+.toast.success .ic{background:var(--blue,#0070f3)}
+.toast.error .ic{background:var(--red,#ee0000)}
+.toast.info .ic{background:var(--fg3,#8f8f8f)}
+.toast.warn .ic{background:var(--orange-deep,#ab570a)}
+.toast .tx{flex:1;min-width:0;word-break:break-word}
+.toast .tx b{display:block;font-weight:600;margin-bottom:2px}
+.toast .x{cursor:pointer;color:var(--fg3,#8f8f8f);font-size:15px;line-height:1;padding:0 2px;flex-shrink:0}
+.toast .x:hover{color:var(--fg,#171717)}
+.modal-overlay{position:fixed;inset:0;background:var(--scrim,rgba(23,23,23,.45));z-index:400;display:flex;align-items:center;justify-content:center;padding:20px}
+/* 全项目的内容型弹窗统一一档尺寸：固定宽 960px、固定高 640px，窄 / 矮视口靠 min() 自动
+   收缩、不溢出。高度必须是 height（不是 min-height）：账号详情在 API Keys / 额度 / 用量 /
+   设备 之间切换、各列表数据量不同，弹窗尺寸都要纹丝不动，内容超出就落在弹窗内滚动，
+   绝不随内容多寡「蹦跳」。确认 / 告知框是刻意紧凑的另一档，见下方 .modal.confirm */
+.modal{display:flex;flex-direction:column;background:var(--ds-background-100);border-radius:var(--r-lg,16px);padding:28px 30px;width:min(960px,100%);height:min(640px,86vh);overflow:hidden;box-shadow:var(--sh-2,0 0 0 1px rgba(0,0,0,.08),0 4px 8px rgba(0,0,0,.06));animation:modalIn .18s ease}
+@keyframes modalIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+/* 容器只为「把焦点接进弹窗」而可聚焦（tabindex=-1），不该画出焦点框 */
+.modal:focus{outline:none}
+/* 头部：标题 + 右上角 X，不参与滚动。X 因此永远钉在右上角，正文只在下方的
+   .modal-body 里滚，滚动的字永远不会钻到 X 底下（不叠加、不遮挡） */
+.modal-head{flex-shrink:0;display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px;margin-bottom:16px}
+/* 确认框的图标独占一行、压住标题（原样保留），所以让它占满整行把标题挤到下一行；
+   单行间距由 head 的 gap 给出，图标自己不再留底边距 */
+.modal-head .confirm-ic{flex-basis:100%;margin-bottom:0}
+/* 正文：整个弹窗唯一可滚动的地方，内容不足时撑满剩余高度 */
+.modal-body{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
+.modal-body>*{flex-shrink:0}
+/* 正文首行就是副标题时，别让它自己的负外边距把首行顶出滚动区 */
+.modal-body>.modal-sub:first-child{margin-top:0}
+/* 右上角 X：所有弹窗统一的关闭入口（openModal 注入，页面各自的 HTML 不再写关闭按钮） */
+.modal-x{flex-shrink:0;margin-left:auto;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:none;padding:0;border-radius:var(--r-sm);background:none;color:var(--fg3,#8f8f8f);font-size:18px;line-height:1;cursor:pointer;transition:background var(--motion-fast),color var(--motion-fast)}
+.modal-x:hover{background:var(--soft,#f2f2f2);color:var(--fg,#171717)}
+.modal-x:focus-visible{outline:none;box-shadow:var(--ds-focus-ring,0 0 0 2px #fff,0 0 0 4px #0070f3)}
+.modal h3{font-size:16px;font-weight:600;letter-spacing:-.4px;margin-bottom:16px}
+.modal-head h3{margin:0}
+.modal label{display:block;font-size:12px;font-weight:500;margin:14px 0 6px;color:var(--fg2,#4d4d4d)}
+.modal-actions{display:flex;gap:8px;margin-top:26px;justify-content:flex-end}
+/* 底部操作条：同样不参与滚动，永远贴在弹窗底边（正文 flex:1 把它顶到最下面） */
+.modal>.modal-actions{flex-shrink:0;margin-top:0;padding-top:24px}
+/* 确认 / 告知框：刻意紧凑的另一档——height:auto 退出上面的固定高、min-height:0 退出最小高，
+   只告知一两句话却撑成 640px 的空白反而难看 */
+.modal.confirm{max-width:400px;height:auto;min-height:0;padding:22px;border-radius:var(--r-md,12px)}
+.modal.confirm h3{margin-bottom:6px}
+.modal.confirm .cd{font-size:14px;color:var(--fg2,#4d4d4d);line-height:1.6}
+/* 弹窗标题下的一句说明：抵掉 h3 的 16px 下边距，把说明拉近标题、与正文拉开 */
+.modal-sub{margin:-10px 0 14px}
+.confirm-ic{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;color:#fff;background:var(--blue,#0070f3);margin-bottom:12px}
+.modal.confirm.danger .confirm-ic{background:var(--red,#ee0000)}
+.btn-danger-solid{background:var(--red,#ee0000);color:#fff;box-shadow:0 0 0 1px var(--red,#ee0000)}
+.btn-danger-solid:hover{background:var(--red-deep,#c50000)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-primary:disabled,.btn-danger-solid:disabled{opacity:.45}
+/* 无边框按钮：分页器、表格行内操作都用它；两个外壳（面板 / 用户控制台）都注入这一份 */
+.btn-ghost{box-shadow:none;background:transparent;color:var(--fg2,#4d4d4d)}
+.btn-ghost:hover{background:var(--soft,#f2f2f2);color:var(--fg,#171717)}
+/* ============ 导航栏 logo ============ */
+.logo-mark{width:20px;height:20px;flex-shrink:0;display:block}
+/* ============ 密码可见切换 ============ */
+/* .pw 承载输入框原本的下边距与横向布局，眼睛按钮贴在输入框右内缘。
+   .pw-block 用于堆叠表单（登录 / 注册 / 首次改密页），行内表单（我的页的改密行）
+   由 .apply-row>.pw 自己撑宽，两种布局同一套标记 */
+.pw{position:relative;display:flex;align-items:center}
+.pw>.input{padding-right:48px;margin-bottom:0}
+.pw.pw-block{margin-bottom:12px}
+.pw-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:none;
+  font-family:inherit;font-size:12px;line-height:1;color:var(--fg3,#8f8f8f);cursor:pointer;padding:6px 4px;border-radius:4px}
+.pw-eye:hover{color:var(--fg,#171717)}
+.pw-eye:focus-visible{outline:none;box-shadow:var(--ds-focus-ring,0 0 0 2px #fff,0 0 0 4px #0070f3)}
+/* ============ 分页条（各列表共用：管理面板 + 用户控制台都注入这一份） ============ */
+.pager{justify-content:flex-end;gap:10px;margin-top:12px;flex-wrap:wrap}
+.pager button:disabled{opacity:.4;cursor:not-allowed}
+/* ============ 视觉隐藏（读屏可见） ============ */
+/* 状态列只有一个色点，说明原本只挂在 title 上——空元素上的 title 并不保证被播报。
+   圆点本体标 aria-hidden，语义改由紧随其后的这段文本承担，读屏只念一次 */
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+/* ============ 减少动态效果 ============ */
+/* 前庭敏感用户关掉位移与淡入：切页、弹窗、通知都不再移动，只保留颜色类的即时反馈 */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--bg);color:var(--fg);min-height:100vh}
+.wrap{max-width:1140px;margin:0 auto;padding:36px 24px 72px}
+/* 顶栏：logo 回首页，右侧给一个登录入口（访客页唯一的跳出点） */
+.hd{display:flex;align-items:center;gap:10px;margin-bottom:26px}
+.hd .brand{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;letter-spacing:-.3px;color:var(--fg);text-decoration:none}
+.hd .brand:hover{opacity:.75}
+/* 顶栏品牌放大：只动访客页顶栏这一处——共享层的 .logo-mark 是全局 20×20
+   （侧栏、概览缩略图都在用），不能改。高度必须一起给：这个 svg 的 viewBox 是竖版，
+   只改宽度的话高度仍被 20px 钉住、图形反而更小，宽度也白留 */
+.hd .brand .logo-mark{width:32px;height:32px}
+.hd .brand>span{font-size:22px}
+.hd .sp{flex:1}
+.hd .lnk{font-size:13px;color:var(--fg2);text-decoration:none;padding:7px 14px;border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--line);transition:all var(--motion-fast)}
+.hd .lnk:hover{color:var(--fg);background:var(--soft)}
+/* 框架版本号：挂在顶栏品牌旁，说明这一页由哪个框架版本渲染。
+   等宽小字 + 淡色胶囊，不抢标题与卡片的层级 */
+.hd .ver{font-family:var(--mono);font-size:11px;color:var(--fg3);padding:2px 8px;border-radius:999px;background:var(--soft);align-self:center}
+h1{font-size:30px;font-weight:600;letter-spacing:-1px}
+/* 分区栏：页头（这一页是什么）与卡片网格（有哪些插件）之间的结构线。
+   没有它时，标题、数量、卡片是三层同样口吻的堆叠，层次读不出来 */
+.secbar{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
+  margin-top:28px;padding-bottom:11px;border-bottom:1px solid var(--line)}
+.secbar-t{font-size:14px;font-weight:600;letter-spacing:-.2px;color:var(--fg)}
+.secbar-c{font-size:12px;color:var(--fg3)}
+/* 网格：宽屏一行三个，窄屏逐级降到两列 / 单列。卡片高度由内容（四段固定行数）决定，
+   不再用 aspect-ratio 撑正方形——内容之外的地方全成了空白 */
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:16px}
+.empty{font-size:13px;color:var(--fg3);padding:32px 0}
+/* ============ 卡片（单面，点击开弹窗） ============ */
+/* 高度不靠 aspect-ratio 撑：四段各自的行数是硬上限——标题 1 行、作者 1 行、描述 3 行、
+   用户组 2 行，加起来高度恒定，同一行的卡片因此天然齐平，内容超了截断 */
+.xcard{display:flex;flex-direction:column;padding:18px;border-radius:var(--r-md);
+  background:var(--ds-background-100);box-shadow:var(--sh-1);cursor:pointer;outline:none;overflow:hidden;
+  transition:box-shadow var(--motion-fast),transform var(--motion-fast)}
+.xcard:hover{box-shadow:var(--sh-2);transform:translateY(-1px)}
+.xcard:focus-visible{box-shadow:var(--ds-focus-ring)}
+/* 名称一行；作者一行——**没有作者也占着这一行的高度**，否则有 / 没作者的卡片会差出一行 */
+.xname{flex-shrink:0;font-size:17px;font-weight:600;letter-spacing:-.4px;line-height:22px;height:22px;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xby{flex-shrink:0;margin-top:4px;font-size:12px;line-height:18px;height:18px;color:var(--fg3);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 描述固定三行：短的留白、长的在第三行收省略号，卡片高度不随描述长短变 */
+.xdesc{flex-shrink:0;margin-top:10px;font-size:13px;line-height:20px;height:60px;color:var(--fg2);
+  overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+/* 可用用户组直接铺标签、不再先写一行「可用用户组」：固定两行高度，超出的组裁掉。
+   align-content:flex-end——单排标签沉在第二排（底部）对齐，只有一排放不下、
+   溢出成两排时才从第一排开始铺满这两排 */
+.xtags{flex-shrink:0;display:flex;flex-wrap:wrap;align-content:flex-end;gap:6px;margin-top:10px;
+  height:48px;overflow:hidden}
+.xtags .xnone{font-size:12px;color:var(--fg3)}
+.chip{display:inline-block;font-size:11px;line-height:1.7;padding:1px 8px;border-radius:999px;
+  background:var(--soft);color:var(--fg2);box-shadow:inset 0 0 0 1px var(--line)}
+/* 「全部用户组」用蓝色区分：它是一条覆盖全组的结论，与逐个列出的组名不是一回事 */
+.chip-all{background:var(--blue-soft);color:var(--blue);box-shadow:none}
+/* ============ 明细弹窗 ============ */
+/* 宽屏居中定宽，窄屏（媒体查询里）边距收窄、铺满可用宽度；超出高度只滚正文，
+   标题与关闭按钮留在原地 */
+.xmodal{position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;padding:24px}
+.xmodal[hidden]{display:none}
+.xm-bg{position:absolute;inset:0;background:var(--scrim)}
+.xm-box{position:relative;display:flex;flex-direction:column;width:100%;max-width:640px;max-height:calc(100vh - 48px);
+  background:var(--ds-background-100);border-radius:var(--r-lg);box-shadow:var(--sh-2);overflow:hidden}
+.xm-hd{flex-shrink:0;display:flex;align-items:flex-start;gap:10px;padding:18px 20px;border-bottom:1px solid var(--line-soft)}
+.xm-ttl{flex:1;min-width:0}
+.xm-name{display:block;font-size:17px;font-weight:600;letter-spacing:-.3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xm-meta{display:block;margin-top:4px;font-size:12px;color:var(--fg3)}
+.xm-x{flex-shrink:0;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:none;padding:0;
+  border-radius:var(--r-sm);background:none;color:var(--fg3);font-size:18px;line-height:1;cursor:pointer;transition:all var(--motion-fast)}
+.xm-x:hover{color:var(--fg);background:var(--soft)}
+.xm-bd{flex:1;min-height:0;overflow-y:auto;padding:2px 20px 22px}
+/* 弹窗两段：路由是主角（深色 + 稍大），插件参数次之 */
+.sec{font-size:12px;font-weight:600;letter-spacing:-.1px;color:var(--fg2);margin:16px 0 8px}
+.rt{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid var(--line-soft)}
+.rt:last-child{border-bottom:none}
+.rt .m{flex-shrink:0;font-family:var(--mono);font-size:10px;line-height:1.8;color:var(--fg3);background:var(--soft);
+  padding:0 5px;border-radius:4px;margin-top:1px}
+.rtb{flex:1;min-width:0}
+.rt .p{display:block;font-family:var(--mono);font-size:12px;line-height:1.6;color:var(--fg);word-break:break-all}
+/* 从属层：尺寸属于「这条路由的可选项」，缩进挂在路由下面，用左侧竖线表达从属关系 */
+.rtsub{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;padding-left:10px;
+  border-left:2px solid var(--line)}
+.rtsub-k{font-size:10px;color:var(--fg3)}
+.rtsub-v{font-family:var(--mono);font-size:11px;color:var(--fg2);background:var(--soft);padding:1px 6px;border-radius:4px}
+/* 参数只列名字：默认值是插件自带的、装完就不会变，列出来只会盖过参数名本身 */
+.pmrow{display:flex;flex-wrap:wrap;gap:6px}
+.pmk{font-family:var(--mono);font-size:11px;color:var(--fg2);background:var(--soft);padding:2px 7px;border-radius:4px}
+.none{font-size:12px;color:var(--fg3);padding:4px 0}
+@media (max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:560px){
+  .wrap{padding:24px 16px 56px}
+  .grid{grid-template-columns:1fr;gap:12px}
+  .xmodal{padding:10px}
+  .xm-box{max-height:calc(100vh - 20px);border-radius:var(--r-md)}
+  .xm-hd{padding:14px 14px}
+  .xm-bd{padding:0 14px 18px}
+}
+</style>
+<script>(function(){try{var t=localStorage.getItem('ink_theme');if(t==='dark'||(t!=='light'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.className+=' dark'}catch(e){}})();</script>
+</head>
+<body>
+<div class="wrap">
+  <div class="hd">
+    <a class="brand" href="/"><svg class="logo-mark" viewBox="7 -3 128 161.6217803955078" width="20" height="20" aria-hidden="true" focusable="false"><path fill="#8A6DB1" d="M61 86.1962L26.5 106.115C22.5 108.424 17.5 105.537 17.5 100.919L17.5 61.0814C17.5 56.4626 22.5 53.5759 26.5 55.8853L61 75.8038C65 78.1133 65 83.8867 61 86.1962Z"/><path fill="#8A6DB1" d="M119 53.1962L84.5 73.1147C80.5 75.4241 75.5 72.5374 75.5 67.9186L75.5 28.0814C75.5 23.4626 80.5 20.5759 84.5 22.8853L119 42.8038C123 45.1132 123 50.8868 119 53.1962Z"/><path fill="#6E5494" d="M72.3109 27.8923L72.3109 67.7295C72.3109 72.3483 67.3109 75.235 63.3109 72.9256L28.8109 53.007C24.8109 50.6976 24.8109 44.9241 28.8109 42.6147L63.3109 22.6962C67.3109 20.3867 72.3109 23.2735 72.3109 27.8923Z"/><path fill="#6E5494" d="M72.3109 93.8923L72.3109 133.729C72.3109 138.348 67.3109 141.235 63.3109 138.926L28.8109 119.007C24.8109 116.698 24.8109 110.924 28.8109 108.615L63.3109 88.6962C67.3109 86.3867 72.3109 89.2735 72.3109 93.8923Z"/><circle cx="101" cy="96" r="12" fill="#5A4378"/></svg><span>eInkViews</span></a>
+    <span class="ver">v26.13.0</span>
+    <span class="sp"></span>
+    
+  </div>
+  <h1>Plugin explorer</h1>
+  <div class="secbar">
+    <span class="secbar-t">Plugins</span>
+    <span class="secbar-c">3 running</span>
+  </div>
+  <div class="grid" id="explore-grid">
+<article class="xcard" tabindex="0" role="button" data-meta="1.0.0 · eInkViews · 1 routes" aria-label="github"><span class="xname">github</span><span class="xby">eInkViews</span><p class="xdesc">GitHub 用户状态与贡献图展示</p><template class="xdetail"><div class="sec">Routes</div><div class="rt"><span class="m">GET</span><div class="rtb"><span class="p">/github/view/dashboard</span><div class="rtsub"><span class="rtsub-k">Sizes</span><span class="rtsub-v">h2xl</span><span class="rtsub-v">hxl</span></div></div></div><div class="sec">Plugin parameters</div><div class="pmrow"><span class="pmk">username</span></div></template></article><article class="xcard" tabindex="0" role="button" data-meta="1.0.0 · 3 routes" aria-label="plugin_template"><span class="xname">plugin_template</span><span class="xby"></span><p class="xdesc">示例插件，演示视图 / JSON 路由的最小实现</p><template class="xdetail"><div class="sec">Routes</div><div class="rt"><span class="m">GET</span><div class="rtb"><span class="p">/plugin_template/json/demojson</span></div></div><div class="rt"><span class="m">GET</span><div class="rtb"><span class="p">/plugin_template/view/detail</span><div class="rtsub"><span class="rtsub-k">Sizes</span><span class="rtsub-v">h2xl</span><span class="rtsub-v">hxl</span></div></div></div><div class="rt"><span class="m">GET</span><div class="rtb"><span class="p">/plugin_template/view/summary</span><div class="rtsub"><span class="rtsub-k">Sizes</span><span class="rtsub-v">h2xl</span><span class="rtsub-v">hxl</span></div></div></div><div class="sec">Plugin parameters</div><div class="pmrow"><span class="pmk">a</span><span class="pmk">b</span><span class="pmk">left</span><span class="pmk">note</span><span class="pmk">right</span><span class="pmk">subtitle</span><span class="pmk">title</span><span class="pmk">tz</span></div></template></article><article class="xcard" tabindex="0" role="button" data-meta="1.0.0 · 1 routes" aria-label="weather_landscape"><span class="xname">weather_landscape</span><span class="xby"></span><p class="xdesc">天气横向可视化插件</p><template class="xdetail"><div class="sec">Routes</div><div class="rt"><span class="m">GET</span><div class="rtb"><span class="p">/weather_landscape/view/weather_landscape</span><div class="rtsub"><span class="rtsub-k">Sizes</span><span class="rtsub-v">h2xl</span><span class="rtsub-v">hxl</span></div></div></div><div class="sec">Plugin parameters</div><div class="pmrow"><span class="pmk">key</span><span class="pmk">lat</span><span class="pmk">lon</span><span class="pmk">pressure_max</span><span class="pmk">pressure_min</span><span class="pmk">units</span></div></template></article>
+  </div>
+</div>
+<div class="xmodal" id="xmodal" hidden>
+  <div class="xm-bg" data-act="xmodal-close"></div>
+  <div class="xm-box" role="dialog" aria-modal="true" aria-labelledby="xm-name">
+    <div class="xm-hd">
+      <div class="xm-ttl">
+        <span class="xm-name" id="xm-name"></span>
+        <span class="xm-meta" id="xm-meta"></span>
+      </div>
+      <button class="xm-x" type="button" data-act="xmodal-close" title="Close" aria-label="Close">&times;</button>
+    </div>
+    <div class="xm-bd" id="xm-bd"></div>
+  </div>
+</div>
+<script type="application/json" id="i18n-data">{"alert.ok": "Got it", "btn.cancel": "Cancel", "btn.close": "Close", "btn.confirm": "Confirm", "btn.copy": "Copy", "confirm.title": "Confirm", "confirm.type_after": "to confirm", "confirm.type_before": "Type", "empty.member_logs": "No membership changes yet", "explore.login": "Login / Register", "explore.section_plugins": "Plugins", "explore.title": "Plugin explorer", "member.action_activate": "Code activation", "member.action_expire": "Expiry revert", "member.action_other": "Change", "member.action_set": "Admin change", "member.chg_exp": "Expiry {v}", "member.chg_fallback": "Fallback {v}", "member.chg_group": "Group {name}", "member.col_admin": "Operator", "member.col_change": "Change", "member.col_reason": "Reason", "member.col_time": "Time", "member.col_type": "Type", "member.forever": "Permanent", "member.group_n": "Group #{n}", "member.join_sep": "; ", "member.no_transfer": "No fallback", "member.system": "System", "msg.copied": "Copied to clipboard", "msg.copy_failed": "Copy failed, please select it manually", "msg.processing": "Working…", "msg.session_expired": "Request failed or the session has expired, please sign in again", "pager.first": "First", "pager.info": "{cur} / {total} · {n} total", "pager.last": "Last", "pager.next": "Next", "pager.prev": "Prev", "pw.hide": "Hide password", "pw.show": "Show password", "theme.to_dark": "Switch to dark", "theme.to_light": "Switch to light", "user.evkey_limit_n": "{n} keys", "user.forbidden": "Disabled", "user.period_day": "daily", "user.period_month": "monthly", "user.period_short_day": "day", "user.period_short_month": "month", "user.period_short_week": "week", "user.period_short_year": "year", "user.period_trial_short": "total", "user.period_week": "weekly", "user.period_year": "yearly", "user.quota_period": "{n}/{period}", "user.quota_trial": "{n}/total", "user.unlimited": "Unlimited"}</script>
+<script>
+/* ============ i18n：服务端按当前语言把整份注册表注入 #i18n-data ============ */
+var I18N={};
+(function(){
+  var el=document.getElementById('i18n-data');
+  if(!el)return;
+  try{I18N=JSON.parse(el.textContent)||{}}catch(e){I18N={}}
+})();
+/* 取词：缺键回落第二参数，再缺就把键名原样返回——界面上露出键名，好过一片空白。
+   骨架（HTML 标记）里的取词由服务端按 T: 前缀标记替换完成，这里只管脚本动态拼出来的
+   文案，两边读的是同一份注册表，不会各写一套 */
+function T(k,fb,fmt){
+  var v=I18N[k];
+  if(v===undefined||v===null||v==='')v=(fb===undefined?k:fb);
+  if(fmt)v=String(v).replace(/\{(\w+)\}/g,function(m,g){return fmt[g]===undefined?m:fmt[g]});
+  return v;
+}
+/* ============ 共享 UI：请求工具 / 通知 / 弹窗 ============ */
+/* 统一请求包装：先解析响应体，再决定要不要兜底，解析失败一律归一为 {success:false}
+   后 resolve（否则 r.json() 抛错会让调用方的 Promise 被拒，只读刷新就永久停在「加载中」）。
+   注意不能先按 r.ok 拦：后端统一错误出口对 4xx/5xx 也返回 {success:false,message,code}，
+   先拦会把「已存在同名用户组」这类具体原因一起吞掉，只剩一句「会话已失效」。
+   真正需要兜底的是响应体不是 JSON 的情况——会话过期被重定向到登录页拿到的是 HTML。 */
+function _reqJson(u,opt){
+  return fetch(u,opt).then(function(r){
+    return r.json().then(function(d){
+      if(d&&typeof d==='object')return d;
+      return {success:false,message:T('msg.session_expired','请求失败或会话已失效，请重新登录'),code:r.status};
+    },function(){
+      return {success:false,message:T('msg.session_expired','请求失败或会话已失效，请重新登录'),code:r.status};
+    });
+  });
+}
+var R={
+  get:function(u){return _reqJson(u)},
+  post:function(u,d){return _reqJson(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(d||{})})},
+  put:function(u,d){return _reqJson(u,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(d||{})})},
+  del:function(u){return _reqJson(u,{method:'DELETE'})}
+};
+/* ============ 时间格式化 / 登录态（管理端与用户控制台两份外壳共用，只此一份） ============ */
+/* 库里存的一律是 UTC（ISO 带 Z 或 SQLite 的 'YYYY-MM-DD HH:MM:SS'），展示时换算到配置时区。
+   TZ_OFFSET 是各页面外壳声明的全局量，本函数在调用时才读它，与声明顺序无关 */
+function fmtDT(d){
+  if(!d)return '-';
+  var s=String(d).trim();if(!s)return '-';
+  /* 毫秒以下精度各浏览器解析不一致，展示只到秒，直接抹掉小数部分 */
+  var iso=s.replace(' ','T').replace(/\.\d+/,'');
+  if(!/[Zz]$|[+-]\d{2}:?\d{2}$/.test(iso))iso+='Z';
+  var t=Date.parse(iso);
+  if(isNaN(t))return s.replace('T',' ').substring(0,19);
+  var off=(TZ_OFFSET===null)?(-new Date().getTimezoneOffset()/60):TZ_OFFSET;
+  return new Date(t+off*3600000).toISOString().replace('T',' ').substring(0,19);
+}
+function doLogout(){
+  R.post('/admin/api/auth/logout').then(function(){window.location.href='/login'});
+}
+function esc(s){return String(s===null||s===undefined?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')}
+function num(n){return (parseInt(n)||0).toLocaleString('en-US')}
+/* ============ 状态圆点 ============ */
+/* 表格状态列只有一个色点：hover 说明放 title（鼠标侧），语义文本放紧随其后的 .sr-only
+   （读屏侧），圆点本体 aria-hidden 以免两边被念两遍。
+   新增状态列一律用它，不要再直写 <i class="dot ...">——漏一个 .sr-only，那一列对读屏就是空的 */
+function dotHtml(cls,text){
+  var t=esc(text);
+  return '<i class="dot '+cls+'" title="'+t+'" aria-hidden="true"></i><span class="sr-only">'+t+'</span>';
+}
+/* ============ 分页（各列表共用） ============ */
+/* 一份状态表 + 每张列表注册一个「按当前页重绘」的回调：翻页只重绘那张表，
+   不动同一页面上的其它内容（弹窗里的列表翻页也不会把表单里填了一半的内容清掉） */
+var _pg={},_pgRender={};
+function pgPage(key){return _pg[key]||1}
+function pgBar(key,total,per){
+  var tp=Math.max(1,Math.ceil(total/per)),cp=Math.min(pgPage(key),tp);
+  _pg[key]=cp;
+  function b(label,p,disabled){
+    return '<button class="btn btn-sm btn-ghost" data-act="pg-go" data-key="'+key+'" data-p="'+p+'"'+(disabled?' disabled':'')+'>'+label+'</button>';
+  }
+  return '<div class="flex pager">'+b(T('pager.first','首页'),1,cp<=1)+b(T('pager.prev','上一页'),cp-1,cp<=1)+
+    '<span class="dim small">'+T('pager.info','{cur} / {total} 页 · 共 {n} 条',{cur:cp,total:tp,n:num(total)})+'</span>'+
+    b(T('pager.next','下一页'),cp+1,cp>=tp)+b(T('pager.last','末页'),tp,cp>=tp)+'</div>';
+}
+/** 前端分页：返回当前页数据与分页条 HTML */
+function pgSlice(items,key,per){
+  var total=items.length,tp=Math.max(1,Math.ceil(total/per)),cp=Math.min(pgPage(key),tp);
+  _pg[key]=cp;
+  return {rows:items.slice((cp-1)*per,cp*per),bar:pgBar(key,total,per)};
+}
+/* 翻页事件：用户控制台与登录页没有面板那套事件委托，这里自带一份 */
+document.addEventListener('click',function(e){
+  var el=e.target.closest?e.target.closest('[data-act="pg-go"]'):null;
+  if(!el)return;
+  _pg[el.dataset.key]=Math.max(1,parseInt(el.dataset.p)||1);
+  var rf=_pgRender[el.dataset.key];if(rf)rf();
+});
+/* ============ 浮层通知：固定右上角，不占用页面布局，不挤压其它元素 */
+function toast(msg,type,title){
+  var wrap=document.getElementById('toasts');
+  if(!wrap){
+    wrap=document.createElement('div');wrap.id='toasts';wrap.className='toasts';
+    // 浮层通知不入焦点流，读屏用户只能靠 live region 知道「刚才那步成功了没」
+    wrap.setAttribute('role','status');wrap.setAttribute('aria-live','polite');
+    document.body.appendChild(wrap);
+  }
+  var t=type||'info';
+  var glyph={success:'✓',error:'!',warn:'!',info:'i'}[t]||'i';
+  var el=document.createElement('div');el.className='toast '+t;
+  // 失败是「出了事」，单独用 alert 让读屏打断当前播报；其余按 polite 排队念
+  if(t==='error'){el.setAttribute('role','alert');el.setAttribute('aria-live','assertive')}
+  el.innerHTML='<span class="ic">'+glyph+'</span><div class="tx">'+(title?'<b>'+esc(title)+'</b>':'')+esc(msg)+'</div><span class="x">×</span>';
+  wrap.appendChild(el);
+  var timer=setTimeout(close,t==='error'?5000:2800);
+  function close(){clearTimeout(timer);if(!el.parentNode)return;el.classList.add('out');setTimeout(function(){if(el.parentNode)el.parentNode.removeChild(el)},170)}
+  el.querySelector('.x').addEventListener('click',close);
+  return el;
+}
+/* 复制文本：优先 Clipboard API；自托管 prod 常以 http://ip:5000 直连，非安全上下文下
+   navigator.clipboard 为 undefined，调用即抛 TypeError，故回退 execCommand('copy')，
+   仍失败给明确提示，而不是静默失败、让用户以为已复制 */
+function _legacyCopy(text){
+  try{
+    var ta=document.createElement('textarea');
+    ta.value=text;ta.setAttribute('readonly','');
+    ta.style.position='fixed';ta.style.top='-1000px';ta.style.opacity='0';
+    document.body.appendChild(ta);
+    ta.select();ta.setSelectionRange(0,ta.value.length);
+    var ok=document.execCommand('copy');
+    document.body.removeChild(ta);
+    return ok;
+  }catch(e){return false}
+}
+function copyText(text,okMsg){
+  var t=String(text==null?'':text);
+  function ok(){toast(okMsg||T('msg.copied','已复制到剪贴板'),'success')}
+  function fail(){toast(T('msg.copy_failed','复制失败，请手动选择'),'error')}
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    navigator.clipboard.writeText(t).then(ok,function(){if(_legacyCopy(t))ok();else fail()});
+  }else if(_legacyCopy(t))ok();else fail();
+}
+/* 焦点陷阱：Tab 在弹窗内循环（背后页面此时被遮住，Tab 过去等于焦点凭空消失）。
+   关闭时把焦点还给打开弹窗前的那个元素——否则焦点掉回 <body>，键盘用户得从头 Tab 一遍 */
+function _trapFocus(ov){
+  var prev=document.activeElement,box=ov.querySelector('.modal');
+  // 先把焦点移进弹窗：焦点留在触发按钮上时，Tab 的起点在弹窗外，陷阱拦不住第一步
+  if(box){box.setAttribute('tabindex','-1');try{box.focus({preventScroll:true})}catch(e){box.focus()}}
+  ov.addEventListener('keydown',function(e){
+    if(e.key!=='Tab')return;
+    var f=ov.querySelectorAll('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])');
+    if(!f.length)return;
+    var first=f[0],last=f[f.length-1],cur=document.activeElement;
+    // 焦点还在容器上（刚打开）或已经跑到弹窗外：按方向补到另一端
+    var edge=(!ov.contains(cur))||cur===box;
+    if(e.shiftKey){if(cur===first||edge){e.preventDefault();last.focus()}}
+    else if(cur===last||edge){e.preventDefault();first.focus()}
+  });
+  var raw=ov.remove.bind(ov);
+  ov.remove=function(){raw();if(prev&&prev.focus)prev.focus()};
+}
+/* 「取消」的统一入口：Esc、点遮罩、底部取消按钮都走这里——放弃改动并把弹窗关掉。
+   先派发 modal-esc 让确认类弹窗 resolve(false)，再移除遮罩 */
+function _closeOverlay(ov){
+  ov.dispatchEvent(new Event('modal-esc'));
+  ov.remove();
+}
+/* 打开弹窗。
+   右上角 X 的语义是「取消并关闭」：放弃本窗改动，与点遮罩、按 Esc 同走 _closeOverlay。
+   要保存必须显式点底部操作条里的「保存」，各页自己绑定的保存逻辑照旧（成功才关、
+   失败留在弹窗报错、按钮 disabled 时不提交）。
+   DOM 结构固定为 头部（标题 + X）/ 正文（唯一滚动区）/ 底部操作条，X 与操作条都不滚动。 */
+function openModal(inner,id){
+  var ov=document.createElement('div');ov.className='modal-overlay';if(id)ov.id=id;
+  // role/aria-modal：让读屏把这里当独立的一层，不再去念背后被遮住的页面
+  ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');
+  ov.innerHTML='<div class="modal">'+inner+'</div>';
+  var box=ov.querySelector('.modal');
+  var head=document.createElement('div');head.className='modal-head';
+  var x=document.createElement('button');
+  x.type='button';x.className='modal-x';x.innerHTML='&times;';
+  var xlab=esc(T('btn.close','关闭'));x.title=xlab;x.setAttribute('aria-label',xlab);
+  head.appendChild(x);
+  var body=document.createElement('div');body.className='modal-body';
+  var acts=null;
+  while(box.firstChild){
+    var n=box.removeChild(box.firstChild);
+    // 标题与确认框图标一起进头部：图标靠 CSS 独占一行（压住标题），标题与 X 同处第二行。
+    // 各自最多收一个，页面重复写了也不挤进头部
+    var isH3=n.nodeType===1&&n.tagName==='H3';
+    var isIc=n.nodeType===1&&n.classList.contains('confirm-ic');
+    if((isH3&&!head.querySelector('h3'))||(isIc&&!head.querySelector('.confirm-ic')))head.insertBefore(n,x);
+    else if(n.nodeType===1&&n.classList.contains('modal-actions'))acts=n;
+    else body.appendChild(n);
+  }
+  box.appendChild(head);box.appendChild(body);if(acts)box.appendChild(acts);
+  // X = 取消并关闭：与底部「取消」完全等价，放弃改动后关掉；保存走底部操作条的保存按钮
+  x.addEventListener('click',function(){_closeOverlay(ov)});
+  ov.addEventListener('mousedown',function(e){ov._down=(e.target===ov)});
+  ov.addEventListener('click',function(e){if(e.target===ov&&ov._down)_closeOverlay(ov)});
+  document.body.appendChild(ov);
+  _trapFocus(ov);
+  return ov;
+}
+/* 确认弹窗：替代原生 confirm，返回 Promise<boolean>；requireText 用于不可逆操作 */
+function uiConfirm(o){
+  o=o||{};
+  return new Promise(function(resolve){
+    var danger=!!o.danger,need=o.requireText||'';
+    var h='<div class="confirm-ic">'+(danger?'!':'?')+'</div><h3>'+esc(o.title||T('confirm.title','确认操作'))+'</h3>'+
+      '<div class="cd">'+esc(o.message||'')+'</div>'+
+      (need?'<label>'+esc(T('confirm.type_before','输入'))+' <span class="mono">'+esc(need)+'</span> '+esc(T('confirm.type_after','以确认'))+'</label><input class="input" id="cf-text" autocomplete="off" style="width:100%">':'')+
+      '<div class="modal-actions"><button class="btn" data-act="cf-no">'+esc(o.cancelText||T('btn.cancel','取消'))+'</button>'+
+      '<button class="btn '+(danger?'btn-danger-solid':'btn-primary')+'" data-act="cf-yes"'+(need?' disabled':'')+'>'+esc(o.confirmText||T('btn.confirm','确认'))+'</button></div>';
+    var ov=openModal(h,'cf-modal');
+    var box=ov.querySelector('.modal');box.classList.add('confirm');if(danger)box.classList.add('danger');
+    var yes=ov.querySelector('[data-act="cf-yes"]');
+    var done=function(v){if(ov.parentNode)ov.remove();resolve(v)};
+    ov.querySelector('[data-act="cf-no"]').addEventListener('click',function(){done(false)});
+    ov.querySelector('[data-act="cf-yes"]').addEventListener('click',function(){done(true)});
+    ov.addEventListener('click',function(e){if(e.target===ov)setTimeout(function(){if(!ov.parentNode)resolve(false)},0)});
+    ov.addEventListener('modal-esc',function(){done(false)});
+    if(need){
+      var inp=ov.querySelector('#cf-text');inp.focus();
+      inp.addEventListener('input',function(){yes.disabled=inp.value.trim()!==need});
+      inp.addEventListener('keydown',function(e){if(e.key==='Enter'&&!yes.disabled)done(true)});
+    }
+  });
+}
+/* 纯告知弹窗：只有「知道了」。自带关闭绑定，不依赖各页面自己的事件委托 */
+function alertModal(title,message){
+  var ov=openModal('<div class="confirm-ic">!</div><h3>'+esc(title)+'</h3>'+
+    '<div class="cd">'+esc(message||'')+'</div>'+
+    '<div class="modal-actions"><button class="btn btn-primary" id="alert-ok">'+esc(T('alert.ok','知道了'))+'</button></div>');
+  ov.querySelector('.modal').classList.add('confirm');
+  ov.querySelector('#alert-ok').addEventListener('click',function(){ov.remove()});
+  return ov;
+}
+/* 弹窗内回车提交 / 自动聚焦首个输入框 */
+function modalForm(ov,submit){
+  var f=ov.querySelector('input:not([type=hidden]),select,textarea');if(f)f.focus();
+  ov.addEventListener('keydown',function(e){
+    if(e.key!=='Enter')return;
+    var t=e.target;
+    if(t&&(t.tagName==='TEXTAREA'||t.tagName==='BUTTON'||t.disabled))return;
+    submit();
+  });
+}
+/* 按钮忙碌态：防重复提交 */
+function btnBusy(btn,on,label){
+  if(!btn)return;
+  if(btn.tagName==='BUTTON'){
+    if(on){if(btn.dataset._t===undefined)btn.dataset._t=btn.innerHTML;btn.disabled=true;btn.textContent=label||T('msg.processing','处理中…')}
+    else{btn.disabled=false;if(btn.dataset._t!==undefined){btn.innerHTML=btn.dataset._t;delete btn.dataset._t}}
+  }else{
+    btn.style.pointerEvents=on?'none':'';
+    btn.style.opacity=on?'.55':'';
+  }
+}
+/* 展示完整凭证（新建 evkey 等一次性结果） */
+function showSecret(title,secret,note){
+  var h='<h3>'+esc(title)+'</h3>'+(note?'<p class="dim small modal-sub">'+esc(note)+'</p>':'')+
+    '<div class="panel mono" id="secret-val" style="word-break:break-all">'+esc(secret)+'</div>'+
+    '<div class="modal-actions"><button class="btn btn-primary" data-act="copy-secret">'+esc(T('btn.copy','复制'))+'</button></div>';
+  var ov=openModal(h,'secret-modal');
+  ov.querySelector('[data-act="copy-secret"]').addEventListener('click',function(){
+    copyText(secret);
+  });
+}
+/* Esc 关闭最上层弹窗 */
+document.addEventListener('keydown',function(e){
+  if(e.key!=='Escape')return;
+  var ovs=document.querySelectorAll('.modal-overlay');
+  if(!ovs.length)return;
+  var top=ovs[ovs.length-1];
+  _closeOverlay(top);
+});
+/* ============ 权限记录（会员变动） ============ */
+/* 管理面板的「我的」页与用户控制台共用同一张表与同一个渲染器：同一份数据两处展示，
+   表体必须逐字一致，否则两边的解读会莫名其妙地不同。
+   「类型」列只给圆点，含义由两处卡片头各自的图例承担（两处都必须列出同一份图例）。 */
+function memberActionBadge(a){
+  var hit={set:['dot-violet',T('member.action_set','管理员调整')],
+    activate:['dot-on',T('member.action_activate','激活码开通')],
+    expire:['dot-off',T('member.action_expire','到期归位')]}[a];
+  if(!hit)hit=['dot-off',a||T('member.action_other','变动')];
+  return dotHtml(hit[0],hit[1]);
+}
+/* 到期日 '' = 永久有效；回落组 0 = 不转移；组 id 0 = 变动前还没有会员身份（激活开通） */
+function _mlExp(v){return v?String(v):T('member.forever','永久')}
+function _mlGroup(name,gid){return name||(gid>0?T('member.group_n','用户组 #{n}',{n:gid}):'—')}
+function _mlFallback(name,gid){
+  var hit=name||(gid>0?T('member.group_n','用户组 #{n}',{n:gid}):'');
+  return hit||T('member.no_transfer','不转移');
+}
+function memberChanges(l){
+  var out=[];
+  if(String(l.old_group_name||l.old_group_id)!==String(l.new_group_name||l.new_group_id))
+    out.push(T('member.chg_group','用户组 {name}',{name:_mlGroup(l.old_group_name,l.old_group_id)})
+      +' → '+_mlGroup(l.new_group_name,l.new_group_id));
+  if(String(l.old_expires_on||'')!==String(l.new_expires_on||''))
+    out.push(T('member.chg_exp','到期日 {v}',{v:_mlExp(l.old_expires_on)})
+      +' → '+_mlExp(l.new_expires_on));
+  if(String(l.old_fallback_name||l.old_fallback_group_id)!==String(l.new_fallback_name||l.new_fallback_group_id))
+    out.push(T('member.chg_fallback','到期回落 {v}',{v:_mlFallback(l.old_fallback_name,l.old_fallback_group_id)})
+      +' → '+_mlFallback(l.new_fallback_name,l.new_fallback_group_id));
+  return out;
+}
+function memberLogRows(items){
+  if(!items||!items.length)return '<div class="empty">'+esc(T('empty.member_logs','暂无权限变动记录'))+'</div>';
+  var h='<table><thead><tr><th>'+T('member.col_time','时间')+'</th><th class="col-dot">'+T('member.col_type','类型')+
+    '</th><th>'+T('member.col_change','变动内容')+'</th><th>'+T('member.col_reason','原因')+
+    '</th><th>'+T('member.col_admin','操作人')+'</th></tr></thead><tbody>';
+  items.forEach(function(l){
+    var ch=memberChanges(l);
+    h+='<tr><td class="dim">'+esc(fmtDT(l.created_at))+'</td>'+
+      '<td class="col-dot">'+memberActionBadge(l.action)+'</td>'+
+      '<td>'+esc(ch.length?ch.join(T('member.join_sep','；')):'—')+'</td>'+
+      '<td class="dim">'+esc(l.reason||'—')+'</td>'+
+      '<td class="dim">'+esc(l.admin_name||T('member.system','系统'))+'</td></tr>';
+  });
+  return h+'</tbody></table>';
+}
+/* ============ 密码可见 ============ */
+/* 只切换 input 的 type，字段名、提交逻辑与自动完成属性一概不动 */
+/* 图标用内联 SVG，不用文字：按钮压在输入框右边缘，写「显示/隐藏」会把密码挤掉一截，
+   而且中文两字按钮的宽度随字体变化，几个页面的按钮宽度还对不齐 */
+var _PW_EYE='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 12S5.9 5.8 12 5.8 22.2 12 22.2 12 18.1 18.2 12 18.2 1.8 12 1.8 12Z"/><circle cx="12" cy="12" r="3.1"/></svg>';
+var _PW_EYE_OFF='<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1.8 12S5.9 5.8 12 5.8c1.9 0 3.5.5 4.9 1.2M22.2 12s-4.1 6.2-10.2 6.2c-1.9 0-3.5-.5-4.9-1.2"/><path d="M9.8 9.8a3.1 3.1 0 0 0 4.4 4.4"/><path d="M3.2 3.2 20.8 20.8"/></svg>';
+/* 按钮文字由脚本填：初始态是「闭眼」（密码当前不可见），点击后换「睁眼」 */
+function pwPaint(btn){
+  var on=btn.getAttribute('aria-pressed')==='true';
+  btn.innerHTML=on?_PW_EYE:_PW_EYE_OFF;
+  btn.title=on?T('pw.hide','隐藏密码'):T('pw.show','显示密码');
+  btn.setAttribute('aria-label',btn.title);
+}
+function pwToggle(btn){
+  var box=btn.closest('.pw');if(!box)return;
+  var inp=box.querySelector('input');if(!inp)return;
+  var show=inp.type==='password';
+  inp.type=show?'text':'password';
+  btn.setAttribute('aria-pressed',show?'true':'false');
+  pwPaint(btn);
+}
+/* 自带绑定：面板页有全局 data-act 委托，用户控制台与登录页没有，靠委托会点不动 */
+document.addEventListener('click',function(e){
+  var el=e.target.closest?e.target.closest('[data-act="pw-toggle"]'):null;
+  if(el)pwToggle(el);
+});
+/* 初始图标：脚本在按钮之前解析，元素还不存在，等 DOM 就绪再统一刷一遍 */
+document.addEventListener('DOMContentLoaded',function(){
+  var bs=document.querySelectorAll('[data-act="pw-toggle"]');
+  for(var i=0;i<bs.length;i++)pwPaint(bs[i]);
+});
+/* ============ 深色主题切换 ============ */
+/* 口径与 <head> 里那段防闪白脚本完全一致：选过就以 localStorage 为准，没选过跟随系统。
+   按钮自带绑定（同上：用户控制台与登录页没有面板的全局 data-act 委托），并顺带刷图标与悬停说明 */
+var THEME_KEY='ink_theme';
+var _MOON='<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 9.6A5.8 5.8 0 0 1 6.4 2.5a5.8 5.8 0 1 0 7.1 7.1z"/></svg>';
+var _SUN='<svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="3.1"/><path d="M8 1.6v1.5M8 12.9v1.5M1.6 8h1.5M12.9 8h1.5M3.5 3.5l1.1 1.1M11.4 11.4l1.1 1.1M12.5 3.5l-1.1 1.1M4.6 11.4l-1.1 1.1"/></svg>';
+function currentTheme(){
+  var t=null;
+  try{t=localStorage.getItem(THEME_KEY)}catch(e){}
+  if(t==='dark'||t==='light')return t;
+  return (window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches)?'dark':'light';
+}
+function themePaint(){
+  var dark=document.documentElement.classList.contains('dark');
+  var tip=dark?T('theme.to_light','切换到浅色'):T('theme.to_dark','切换到深色');
+  var bs=document.querySelectorAll('[data-act="theme-toggle"]');
+  for(var i=0;i<bs.length;i++){
+    bs[i].innerHTML=dark?_SUN:_MOON;
+    bs[i].title=tip;bs[i].setAttribute('aria-label',tip);
+  }
+}
+function setTheme(t){
+  var root=document.documentElement;
+  if(t==='dark')root.classList.add('dark');else root.classList.remove('dark');
+  try{localStorage.setItem(THEME_KEY,t)}catch(e){}
+  themePaint();
+}
+function toggleTheme(){setTheme(document.documentElement.classList.contains('dark')?'light':'dark')}
+document.addEventListener('click',function(e){
+  var el=e.target.closest?e.target.closest('[data-act="theme-toggle"]'):null;
+  if(el)toggleTheme();
+});
+document.addEventListener('DOMContentLoaded',function(){
+  /* 未选择主题时系统偏好可能在页面打开后才变（macOS 按日落自动切换），跟着走 */
+  if(window.matchMedia){
+    var mq=window.matchMedia('(prefers-color-scheme:dark)');
+    var onSys=function(){var t=null;try{t=localStorage.getItem(THEME_KEY)}catch(e){}if(t!=='dark'&&t!=='light')setTheme(mq.matches?'dark':'light')};
+    if(mq.addEventListener)mq.addEventListener('change',onSys);else if(mq.addListener)mq.addListener(onSys);
+  }
+  themePaint();
+});
+/* ============ 限额与配额的取值口径（面板、用户控制台共用） ============ */
+/* 0 与 -1 都是合法上限，取默认值不能写 `|| 默认`（`0||-1` 会把「禁止」变成「不限」） */
+function _intVal(v,d){var n=parseInt(v,10);return isNaN(n)?d:n}
+/* evkey 持有上限三态：-1 = 不限，0 = 该组禁止创建，N = 最多 N 个 */
+function evkeyLimitText(v){
+  var n=_intVal(v,null);
+  if(n===null)return '-';
+  if(n<0)return T('user.unlimited','不限');
+  if(n===0)return T('user.forbidden','禁止');
+  return T('user.evkey_limit_n','{n} 个',{n:n});
+}
+/* 配额两种模式共用一个字段 quota_period：day/week/month/year = 按时间周期（到点归零），
+   trial = 按次总量（用完即止、永不重置）。
+   下拉框用完整说法（每日），表格列拼「N次/月」用单字标签（日），两套标签分开取词。 */
+var _QUOTA_UNITS=[['day','user.period_day','每日'],['week','user.period_week','每周'],
+  ['month','user.period_month','每月'],['year','user.period_year','每年']];
+var _QUOTA_PERIODS=[['day','user.period_short_day','日'],['week','user.period_short_week','周'],
+  ['month','user.period_short_month','月'],['year','user.period_short_year','年'],
+  ['trial','user.period_trial_short','总量']];
+function _periodLabel(p){
+  var hit=_QUOTA_PERIODS.find(function(x){return x[0]===p});
+  return hit?T(hit[1],hit[2]):T('user.period_short_day','日');
+}
+function quotaText(g){
+  var lim=_intVal(g.quota_limit,0);
+  if(lim<=0)return T('user.unlimited','不限');
+  if(String(g.quota_period)==='trial')return T('user.quota_trial','{n}次/总量',{n:lim});
+  return T('user.quota_period','{n}次/{period}',{n:lim,period:_periodLabel(g.quota_period)});
+}
+</script>
+<script>
+/* 卡片的明细内联在自身的 <template class="xdetail"> 里，打开时原样搬到弹窗——
+   前端不新增任何接口（见文件头说明） */
+var xm=document.getElementById('xmodal'),xmBd=document.getElementById('xm-bd'),
+    xmName=document.getElementById('xm-name'),xmMeta=document.getElementById('xm-meta'),
+    xmLast=null;
+function xmOpen(card){
+  if(!card)return;
+  var tpl=card.querySelector('template.xdetail'),nm=card.querySelector('.xname');
+  xmName.textContent=nm?nm.textContent:'';
+  xmMeta.textContent=card.getAttribute('data-meta')||'';
+  xmBd.innerHTML=tpl?tpl.innerHTML:'';
+  xm.hidden=false;
+  document.body.style.overflow='hidden';
+  var btn=xm.querySelector('.xm-x');if(btn)btn.focus();
+}
+function xmClose(){
+  if(xm.hidden)return;
+  xm.hidden=true;
+  document.body.style.overflow='';
+  /* 关掉后把焦点还给刚才那张卡，键盘用户不必从头 Tab 回来 */
+  if(xmLast&&xmLast.focus)xmLast.focus();
+}
+document.addEventListener('click',function(e){
+  var t=e.target;
+  if(!t||!t.closest)return;
+  if(t.closest('[data-act="xmodal-close"]')){xmClose();return}
+  var card=t.closest('.xcard');
+  if(card){xmLast=card;xmOpen(card)}
+});
+document.addEventListener('keydown',function(e){
+  if(e.key==='Escape'){xmClose();return}
+  if(e.key!=='Enter'&&e.key!==' ')return;
+  var t=e.target;
+  if(!t||!t.closest)return;
+  var card=t.closest('.xcard');
+  if(!card)return;
+  e.preventDefault();
+  xmLast=card;xmOpen(card);
+});
+</script>
+</body>
+</html>

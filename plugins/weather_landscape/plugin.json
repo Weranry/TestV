@@ -1,0 +1,11 @@
+{
+  "name": "weather_landscape",
+  "version": "1.0.0",
+  "description": "天气横向可视化插件",
+  "author": "",
+  "min_framework_version": "26.9.0",
+  "dependencies": {
+    "plugins": [],
+    "python": []
+  }
+}

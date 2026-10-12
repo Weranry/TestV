@@ -1,0 +1,15 @@
+# 本地 / 自托管（含多实例）依赖：在 Vercel 最小集之上补上只有本机进程才用得到的库。
+#   cachetools    —— 字体 LRU 缓存、鉴权缓存、限流计数、日志统计短时缓存
+#   uvicorn       —— 自己托管 ASGI 服务（Serverless 由平台托管，装了也是白装）
+#   PyJWT         —— 管理面板会话 Cookie 的签名/校验（Vercel 侧只有 evkey 鉴权，不发会话）
+#   redis         —— 可选：配置 REDIS_URL 后跨实例共享限流计数 / 防撞库 / 单例租约 / 失效广播。
+#                    不配 REDIS_URL 时完全用不到，未安装或连不上会自动回落进程内存后端。
+# 装法：pip install -r requirements-local.txt
+#
+# 版本一律精确锁定（==），与 requirements.txt 同一口径：构建结果可复现。
+-r requirements.txt
+cachetools==7.1.4
+uvicorn[standard]==0.40.0
+PyJWT==2.13.0
+# 固定 5.x 系列：异步客户端的 pipeline 等接口在小版本之间有过不兼容改动，不跨大版本。
+redis==5.2.1

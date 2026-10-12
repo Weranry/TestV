@@ -1,0 +1,12 @@
+# Vercel（app.py 入口）的最小依赖集——@vercel/python 只认这一个文件，装什么就都进函数包，
+# 所以这里只放 Serverless 链路上真正用得到的库（含插件在 Vercel 上照常出图所需的那些）。
+# 本地 / 单实例 / 多实例要装的全部依赖都在 requirements-local.txt。
+#
+# 版本一律精确锁定（==）：构建结果可复现，不会被上游小版本改动悄悄改变出图或解析行为。
+# 升级时同步改这里与 requirements-local.txt，并跑一遍 `.trae/tests` 全量用例。
+fastapi==0.141.1
+httpx==0.28.1
+Pillow==12.1.1
+beautifulsoup4==4.14.3
+qrcode==8.2
+lunar-python==1.4.8

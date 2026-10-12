@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
+    <title>eInkViews</title>
+    <style>
+        :root {
+            --bg: #fafafa;
+            --fg: #171717;
+            --fg2: #4d4d4d;
+            --fg3: #8f8f8f;
+            --faint: #a1a1a1;
+            --line: #ebebeb;
+            --soft: #f2f2f2;
+            --ring: 0 0 0 1px var(--line);
+            --card-shadow: 0 0 0 1px var(--line), 0 1px 1px rgba(0, 0, 0, .04);
+            --sh-2: 0 0 0 1px var(--line), 0 1px 1px rgba(0, 0, 0, .04), 0 4px 8px rgba(0, 0, 0, .06);
+            --blue: #0070f3;
+            --focus: rgba(0, 112, 243, .30);
+            /* 三个会在深色下失去意义的组件色：卡片面 / 实心按钮上的文字 / 实心按钮 hover。
+               浅色下分别是「白卡片、白字、更深一档的灰」，深色下必须整体反过来，
+               否则实心按钮会变成「白底白字」而看不见字 */
+            --surface: #fff;
+            --on-fg: #fff;
+            --fg-hover: #383838;
+            --sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+            --mono: ui-monospace, SFMono-Regular, "Segoe UI Mono", Roboto Mono, Menlo, Consolas, monospace;
+            --width: 420px;
+            --gap: 1.1rem;
+            /* 让浏览器原生控件（滚动条、表单等）也跟着亮暗走，省得在深色页面上留一条白条 */
+            color-scheme: light dark;
+        }
+
+        /* 深色：只跟随系统，不做切换按钮，所以没有面板那层 localStorage 与 .dark 类。
+           取值沿用面板的同一套 Geist 深色令牌，保证同一个产品在两种主题下灰阶一致。
+           媒体查询写在 :root 之后，靠源序覆盖同名变量，与面板 .dark 的写法同构。 */
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #000;
+                --fg: #ededed;
+                --fg2: #a0a0a0;
+                --fg3: #8f8f8f;
+                --faint: #878787;
+                --line: #ffffff14;
+                --soft: #ffffff0f;
+                --card-shadow: 0 0 0 1px var(--line), 0 1px 1px rgba(0, 0, 0, .4);
+                --sh-2: 0 0 0 1px var(--line), 0 1px 1px rgba(0, 0, 0, .4), 0 4px 8px rgba(0, 0, 0, .5);
+                --blue: #50a8ff;
+                --focus: rgba(80, 168, 255, .35);
+                --surface: #1a1a1a;
+                --on-fg: #0a0a0a;
+                --fg-hover: #cfcfcf;
+            }
+
+            /* 黑底上光斑会显得比白底弱，稍微提一点透明度，保住那点纵深 */
+            body::before {
+                background:
+                    radial-gradient(60% 50% at 18% 12%, rgba(138, 109, 177, .22), transparent 70%),
+                    radial-gradient(55% 45% at 84% 22%, rgba(0, 112, 243, .16), transparent 70%),
+                    radial-gradient(60% 45% at 50% 102%, rgba(121, 40, 202, .16), transparent 70%);
+            }
+        }
+
+        html,
+        body {
+            position: fixed;
+            inset: 0;
+            overflow: hidden;
+            margin: 0;
+            padding: 0;
+            touch-action: manipulation;
+            overscroll-behavior: none;
+            -webkit-overscroll-behavior: none;
+        }
+
+        body {
+            font-family: var(--sans);
+            color: var(--fg);
+            background: var(--bg);
+            display: flex;
+            flex-direction: column;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* 纯 CSS 网格光斑：三层极低透明度径向渐变，给近白画布一点纵深，不新增任何 DOM */
+        body::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: -1;
+            pointer-events: none;
+            background:
+                radial-gradient(60% 50% at 18% 12%, rgba(138, 109, 177, .16), transparent 70%),
+                radial-gradient(55% 45% at 84% 22%, rgba(0, 112, 243, .10), transparent 70%),
+                radial-gradient(60% 45% at 50% 102%, rgba(121, 40, 202, .10), transparent 70%);
+        }
+
+        .container {
+            max-width: var(--width);
+            width: 100%;
+            min-width: 0;
+            min-height: 0;
+            overflow: hidden;
+            box-sizing: border-box;
+            margin: 0 auto;
+            padding: 0 1.2rem;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding-bottom: 10vh;
+        }
+
+        .logo-container {
+            margin-bottom: 1.2rem;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .logo-bg {
+            background: var(--surface);
+            border-radius: 16px;
+            box-shadow: var(--card-shadow);
+            padding: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: box-shadow 0.22s cubic-bezier(.4, 0, .2, 1), transform 0.22s cubic-bezier(.4, 0, .2, 1);
+            will-change: box-shadow, transform;
+        }
+
+        .logo-bg:hover,
+        .logo-bg:focus {
+            box-shadow: var(--sh-2);
+            transform: translateY(-3px);
+        }
+
+        .logo {
+            width: 120px;
+            height: 120px;
+            display: block;
+        }
+
+        .title-row {
+            position: relative;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            margin-bottom: var(--gap);
+        }
+
+        .title {
+            position: relative;
+            font-size: 2.4rem;
+            font-weight: 700;
+            color: var(--fg);
+            letter-spacing: -0.03em;
+            line-height: 1;
+        }
+
+        .title-badge {
+            position: absolute;
+            top: 0;
+            left: 100%;
+            font-family: var(--mono);
+            font-size: 0.7rem;
+            font-weight: 500;
+            color: var(--fg2);
+            background: var(--soft);
+            padding: 3px 9px;
+            border-radius: 9999px;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            line-height: 1.2;
+        }
+
+        .subtitle {
+            font-size: 0.95rem;
+            color: var(--fg2);
+            font-weight: 400;
+            margin-bottom: var(--gap);
+            letter-spacing: 0;
+            text-align: center;
+        }
+
+        .buttons {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.7rem;
+            margin-bottom: 0.2rem;
+            width: 100%;
+        }
+
+        .button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.55rem 1rem;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: background-color 0.15s, box-shadow 0.15s;
+            /* 等宽两枚：GitHub 带图标、Wiki 只有两个字，按内容排会一宽一窄对不齐，
+               索性给定宽，两个都窄于原先撑满容器的样子 */
+            flex: 0 0 auto;
+            width: 8.5rem;
+            border: none;
+            cursor: pointer;
+            text-decoration: none;
+            box-sizing: border-box;
+        }
+
+        .button-github {
+            background: var(--fg);
+            color: var(--on-fg);
+            box-shadow: 0 0 0 1px var(--fg);
+        }
+
+        .button-github:hover {
+            background: var(--fg-hover);
+        }
+
+        .button-github:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 1px var(--fg), 0 0 0 4px var(--focus);
+        }
+
+        .button-outline {
+            background: var(--surface);
+            color: var(--fg);
+            box-shadow: 0 0 0 1px var(--line);
+        }
+
+        .button-outline:hover {
+            background: var(--soft);
+        }
+
+        .button-outline:focus-visible {
+            outline: none;
+            box-shadow: 0 0 0 1px var(--line), 0 0 0 4px var(--focus);
+        }
+
+        /* 小屏（手机竖屏这一档）：两枚按钮改为上下叠放。宽度不跟着变成 100%，
+           保持与宽屏同一档等宽 —— 叠起来是一条整齐的等宽列，而不是两条撑满屏幕的横杠 */
+        @media (max-width: 420px) {
+            .buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .title {
+                font-size: 2rem;
+            }
+
+            .subtitle {
+                font-size: 0.9rem;
+            }
+
+            .logo {
+                width: 96px;
+                height: 96px;
+            }
+
+            .logo-bg {
+                border-radius: 20px;
+                padding: 14px;
+            }
+
+            .button {
+                padding: 0.5rem 1rem;
+                font-size: 0.95rem;
+            }
+        }
+
+        @media (max-width: 300px) {
+            .container {
+                padding: 0 0.8rem;
+            }
+
+            .title {
+                font-size: 1.65rem;
+            }
+
+            .subtitle {
+                font-size: 0.8rem;
+            }
+
+            .logo {
+                width: 80px;
+                height: 80px;
+            }
+
+            .logo-bg {
+                border-radius: 16px;
+            }
+
+            .button {
+                padding: 0.45rem 0.8rem;
+                font-size: 0.85rem;
+            }
+        }
+
+        svg.icon {
+            width: 18px;
+            height: 18px;
+            margin-right: 6px;
+            vertical-align: -3px;
+            fill: currentColor;
+        }
+
+        .footer {
+            flex-shrink: 0;
+            width: 100%;
+            overflow: hidden;
+            box-sizing: border-box;
+            text-align: center;
+            color: var(--fg3);
+            font-size: 0.85rem;
+            padding: 1.2rem 0;
+            letter-spacing: 0;
+            overflow-wrap: break-word;
+        }
+
+        .footer a,
+        .subtitle a {
+            color: var(--fg2);
+            text-decoration: none;
+        }
+
+        .footer a:hover,
+        .subtitle a:hover {
+            color: var(--fg);
+            text-decoration: underline;
+        }
+
+        /* 「尚未完成初始化」提示：只在 dev/prod 由服务端注入到大标题下的 env-note 区块，
+           Vercel 静态页用不到这个类（类留着不影响静态直出）。 */
+        .setup-note {
+            display: inline-flex;
+            align-items: center;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 0.3rem;
+            padding: 5px 12px;
+            border-radius: 9999px;
+            background: var(--soft);
+            box-shadow: var(--ring);
+            color: var(--fg2);
+            font-size: 0.85rem;
+        }
+
+        .setup-note b {
+            font-weight: 600;
+            color: var(--fg);
+        }
+
+        .setup-note a {
+            color: var(--blue);
+        }
+
+        .setup-note a:hover {
+            color: var(--blue);
+            text-decoration: underline;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="logo-container">
+            <div class="logo-bg">
+                <svg class="logo" xmlns="http://www.w3.org/2000/svg" width="150" height="150"
+                    viewBox="7 -3 128 161.6217803955078" fill="none">
+                    <path fill="#8A6DB1"
+                        d="M61 86.1962L26.5 106.115C22.5 108.424 17.5 105.537 17.5 100.919L17.5 61.0814C17.5 56.4626 22.5 53.5759 26.5 55.8853L61 75.8038C65 78.1133 65 83.8867 61 86.1962Z" />
+                    <path fill="#8A6DB1"
+                        d="M119 53.1962L84.5 73.1147C80.5 75.4241 75.5 72.5374 75.5 67.9186L75.5 28.0814C75.5 23.4626 80.5 20.5759 84.5 22.8853L119 42.8038C123 45.1132 123 50.8868 119 53.1962Z" />
+                    <path fill="#6E5494"
+                        d="M72.3109 27.8923L72.3109 67.7295C72.3109 72.3483 67.3109 75.235 63.3109 72.9256L28.8109 53.007C24.8109 50.6976 24.8109 44.9241 28.8109 42.6147L63.3109 22.6962C67.3109 20.3867 72.3109 23.2735 72.3109 27.8923Z" />
+                    <path fill="#6E5494"
+                        d="M72.3109 93.8923L72.3109 133.729C72.3109 138.348 67.3109 141.235 63.3109 138.926L28.8109 119.007C24.8109 116.698 24.8109 110.924 28.8109 108.615L63.3109 88.6962C67.3109 86.3867 72.3109 89.2735 72.3109 93.8923Z" />
+                    <circle cx="101" cy="96" r="12" fill="#5A4378" />
+                </svg>
+            </div>
+        </div>
+        <div class="title-row">
+            <span class="title">eInkViews<span class="title-badge">EVO</span></span>
+        </div>
+        <div class="subtitle"><!-- env-note:start -->eInkViews is working on <a href="https://vercel.com" target="_blank" rel="noopener noreferrer">Vercel</a><!-- env-note:end --></div>
+        <div class="buttons">
+            <a href="https://github.com/Weranry/eInkViewsEvo" class="button button-github" target="_blank"
+                rel="noopener noreferrer">
+                <svg class="icon" viewBox="0 0 16 16" aria-hidden="true">
+                    <path
+                        d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38
+                        0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53
+                        .63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95
+                        0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27
+                        1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95
+                        .29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+                </svg>
+                GitHub
+            </a>
+            <a href="https://github.com/Weranry/eInkViewsEvo/wiki" class="button button-outline" target="_blank"
+                rel="noopener noreferrer">
+                Wiki
+            </a>
+        </div>
+    </div>
+    <div class="footer">
+        <span>
+            AGPL-3.0 &copy; <span id="year"></span>
+            &middot; <a href="https://github.com/Weranry" target="_blank" rel="noopener noreferrer">Weranry</a>
+            <!-- nav-entry:start -->&middot; <a href="/explore">Plugin Explorer</a><!-- nav-entry:end -->
+            <!-- admin-entry:start --><!-- admin-entry:end -->
+        </span>
+    </div>
+    <script>
+        const sy = 2024, ny = new Date().getFullYear();
+        document.getElementById('year').textContent = sy === ny ? sy : `${sy}-${ny}`;
+    </script>
+</body>
+
+</html>
