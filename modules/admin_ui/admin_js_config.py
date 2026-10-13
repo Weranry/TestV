@@ -136,7 +136,7 @@ function cfgImport(){
     try{data=JSON.parse(String(fr.result||''))}catch(e){toast(T('config.bad_package_json','配置包不是合法 JSON'),'error');return}
     uiConfirm({
       title:T('config.import','导入配置'),danger:true,confirmText:T('config.import_confirm','导入'),
-      message:T('config.import_confirm_msg','将用「{name}」覆盖当前的全局配置、插件配置与各用户组限额，导入后立即生效；包里没有的项保持原样。',{name:f.name})
+      message:T('config.import_confirm_msg','将用「{name}」覆盖当前设置，导入后立即生效。',{name:f.name})
     }).then(function(ok){
       if(!ok)return;
       R.post('/admin/api/config/import',data).then(function(d){

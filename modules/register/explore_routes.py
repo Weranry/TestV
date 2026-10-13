@@ -37,6 +37,11 @@ PLUGINS_ROOT = os.path.join(PROJECT_ROOT, 'plugins')
 _SKIP_PREFIXES = ('/admin', '/docs', '/redoc', '/openapi.json', '/public')
 _IGNORED_METHODS = ('HEAD', 'OPTIONS')
 
+# 空态里的「阅读文档」去处：与 public/pages/index.html 页脚的 wiki 链接一致。
+# 静态兜底页（见 explore_static）和真没插件的实例都会走到这里——与其留一句「没有插件」
+# 让人以为页面坏了，不如给一个明确的下一步。
+_DOCS_URL = 'https://github.com/Weranry/eInkViewsEvo/wiki'
+
 
 def _route_rows(route_objects):
     """插件注册的路由对象 → `[{path, methods, disabled}]`，已剔除后台/文档路径"""
@@ -176,11 +181,16 @@ def _card_html(card, lang, include_groups=True):
     )
 
 
-def build_explore_html(request, include_groups=True):
+def build_explore_html(request, include_groups=True, include_plugins=True):
     """聚合「插件 → 路由 / 参数 / 可用用户组」并渲染整页 HTML
 
     `include_groups=False` 供静态生成用（见 `explore_static`）：静态页在构建机上生成、
     部署到没有数据库的环境，用户组名单没有可信来源，索性整行不渲染。
+
+    `include_plugins=False` 供**占位兜底页**用（见 `explore_static`）：仓库里提交的那份
+    `public/pages/explore.html` 只是 Vercel 构建失败时的降级产物，它铺的是**构建机**读到的
+    插件清单，跟某个具体实例未必一致——列出来只会张冠李戴，故整片卡片不铺，只渲染空态
+    （含「阅读文档」入口）。
     """
     from modules.i18n.registry import t
     lang = req_lang(request)
@@ -189,33 +199,39 @@ def build_explore_html(request, include_groups=True):
     states = getattr(state, 'plugin_states', {}) or {}
     plugin_routes = getattr(state, 'plugin_routes', {}) or {}
     disabled_routes = getattr(state, 'disabled_routes', set()) or set()
-    all_groups = _available_groups()
+    # 占位兜底页不铺卡片，`_available_groups()` 整块跳开——它要读库，而占位页的生成环境
+    # （vercel 模式）里库是停用的，白跑一趟只会多一次必然被捕获的异常
+    all_groups = _available_groups() if include_plugins else []
 
     cards = []
-    for plugin in result.get('plugins', []):
-        name = plugin.get('name', '')
-        # 停用的插件整条不出现：它的路由压根不通，列出来等于给访客一个必错的地址
-        if not name or states.get(name) is not True:
-            continue
-        routes = _route_rows(plugin_routes.get(name, []))
-        # 被停用的路由整条不出现：它一定返回错误，列出来等于给访客一个必错的地址
-        routes = [r for r in routes if r['path'] not in disabled_routes]
-        groups, all_allowed = _group_names_for(name, all_groups)
-        cards.append({
-            'name': name,
-            'description': plugin.get('description') or '',
-            'version': plugin.get('version') or '',
-            'author': plugin.get('author') or '',
-            'routes': routes,
-            'params': _plugin_params(name),
-            'groups': groups,
-            'all_groups': all_allowed,
-        })
-    cards.sort(key=lambda c: c['name'])
+    if include_plugins:
+        for plugin in result.get('plugins', []):
+            name = plugin.get('name', '')
+            # 停用的插件整条不出现：它的路由压根不通，列出来等于给访客一个必错的地址
+            if not name or states.get(name) is not True:
+                continue
+            routes = _route_rows(plugin_routes.get(name, []))
+            # 被停用的路由整条不出现：它一定返回错误，列出来等于给访客一个必错的地址
+            routes = [r for r in routes if r['path'] not in disabled_routes]
+            groups, all_allowed = _group_names_for(name, all_groups)
+            cards.append({
+                'name': name,
+                'description': plugin.get('description') or '',
+                'version': plugin.get('version') or '',
+                'author': plugin.get('author') or '',
+                'routes': routes,
+                'params': _plugin_params(name),
+                'groups': groups,
+                'all_groups': all_allowed,
+            })
+        cards.sort(key=lambda c: c['name'])
 
     cards_html = ''.join(_card_html(c, lang, include_groups) for c in cards)
     if not cards_html:
-        cards_html = '<p class="empty">%s</p>' % _esc(t('explore.empty', lang))
+        cards_html = ('<p class="empty"><span>%s</span>'
+                      '<a class="empty-btn" href="%s" target="_blank" rel="noopener noreferrer">%s</a></p>'
+                      % (_esc(t('explore.empty', lang)), _DOCS_URL,
+                         _esc(t('explore.read_docs', lang))))
 
     out = EXPLORE_HTML
     # 版本号取 app_core 的唯一来源（与 /healthz、app.version 同一份）；函数内局部 import

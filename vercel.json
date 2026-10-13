@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "python3 -B -m modules.register.explore_static || python -B -m modules.register.explore_static || echo 'explore_static: WARNING skipped, keeping the committed public/pages/explore.html'",
+  "buildCommand": "python3 -B -m modules.register.explore_static --live || python -B -m modules.register.explore_static --live || echo 'explore_static: WARNING skipped, keeping the committed public/pages/explore.html'",
   "rewrites": [
     { "source": "/", "destination": "/pages/index.html" },
     { "source": "/explore", "destination": "/pages/explore.html" }

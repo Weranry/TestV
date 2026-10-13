@@ -213,11 +213,12 @@ def console_listener(app, plugin_result, server):
 
 
 def refresh_static_explore():
-    """启动时把静态访客页 `public/pages/explore.html` 刷到与当前插件目录一致。
+    """启动时把静态访客页 `public/pages/explore.html`（占位兜底页）刷到与当前外壳/取词一致。
 
-    这一页在 Vercel 上是边缘静态直出（`vercel.json` 把 `/explore` 指向该文件），但它是在
-    **构建机上生成的**，所以仓库里那份必须跟插件目录保持同步。这一步把「记得手动跑生成器」
-    从人的脑子里挪到启动流程里：只要发布前起过一次本地服务，提交时那份就已经是最新的。
+    这一页在 Vercel 上是边缘静态直出（`vercel.json` 把 `/explore` 指向该文件）。仓库里提交的
+    是**占位兜底页**（不铺插件卡片，只留空态），它只跟外壳（`explore_page.py`）、i18n 文案、
+    共享 UI 走——插件目录怎么变都不影响它。这一步把「记得手动跑生成器」从人的脑子里挪到启动
+    流程里：只要发布前起过一次本地服务，提交时那份就已经跟上外壳/取词了。
 
     必须开子进程跑，不能在本进程里直接调 `build_static_html`：生成器内部用
     `create_app(mode='vercel')` 取插件清单，而那会 `set_db_disabled(True)` 并

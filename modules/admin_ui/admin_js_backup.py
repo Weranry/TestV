@@ -49,7 +49,7 @@ function renderBackupFiles(list){
 }
 function bkDeleteFile(name){
   uiConfirm({title:T('backup.del_title','删除备份'),danger:true,confirmText:T('btn.delete','删除'),
-    message:T('backup.del_confirm','将删除 data/backups/ 里的「{name}」。删掉后这份快照就无法再用来恢复。',{name:name})
+    message:T('backup.del_confirm','将删除快照「{name}」，删除后无法再用于恢复。',{name:name})
   }).then(function(ok){
     if(!ok)return;
     R.del('/admin/api/backup/files/'+encodeURIComponent(name)).then(function(d){
@@ -66,7 +66,7 @@ function bkFileDownload(name){
 function bkFileRestore(name){
   uiConfirm({
     title:T('backup.snapshot_restore_title','用这份快照恢复'),danger:true,confirmText:T('backup.replace_confirm','替换并恢复'),
-    message:T('backup.snapshot_restore_confirm','将用 data/backups/ 里的「{name}」整体替换当前数据库。当前库会先自动备份到 backups/，但恢复后所有账号、权限与配置都来自这份快照，且所有登录态会立即失效。',{name:name})
+    message:T('backup.snapshot_restore_confirm','将用快照「{name}」覆盖当前数据库，当前数据会先自动备份。恢复后所有账号、权限与配置以这份快照为准，当前登录态会失效。',{name:name})
   }).then(function(ok){
     if(!ok)return;
     R.post('/admin/api/backup/files/'+encodeURIComponent(name)+'/restore').then(function(d){
@@ -128,7 +128,7 @@ function bkRestore(){
   if(!f){toast(T('backup.pick_first','请先选择备份文件'),'error');return}
   uiConfirm({
     title:T('backup.restore_title','恢复备份'),danger:true,confirmText:T('backup.replace_confirm','替换并恢复'),
-    message:T('backup.restore_confirm','将用「{name}」整体替换当前数据库。当前库会先自动备份到 backups/，但恢复后所有账号、权限与配置都来自这个文件，且所有登录态会立即失效。',{name:f.name})
+    message:T('backup.restore_confirm','将用备份「{name}」覆盖当前数据库，当前数据会先自动备份。恢复后所有账号、权限与配置以这份备份为准，当前登录态会失效。',{name:f.name})
   }).then(function(ok){
     if(!ok)return;
     var btn=document.getElementById('bk-restore');

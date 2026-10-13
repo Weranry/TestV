@@ -135,7 +135,7 @@ function showPrerenderModal(id){
   var t=id?prTaskById(id):null;
   if(id&&!t){toast(T('prerender.not_found','任务不存在'),'error');return}
   var h='<h3>'+(t?T('prerender.modal_edit_title','编辑任务'):T('prerender.modal_new_title','新建定时任务'))+'</h3>';
-  h+='<div class="cd">'+T('prerender.modal_desc','到点自动渲染一次并存入成品缓存；之后同路径、同业务参数的请求直接命中，旋转、反色、cmode 与输出格式由每个请求自己带，不再重新渲染。')+'</div>';
+  h+='<div class="cd">'+T('prerender.modal_desc','到点自动渲染并缓存成品；之后相同参数的请求直接命中缓存，不再重新渲染。')+'</div>';
   h+='<label>'+T('prerender.label_name','任务名称')+'</label><input class="input" id="pr-name" placeholder="'+T('prerender.ph_name','留空则自动命名')+'" value="'+esc(t?t.name:'')+'" style="width:100%">';
   h+='<label>'+T('prerender.label_path','请求路径')+'</label><input class="input mono" id="pr-path" placeholder="'+T('prerender.ph_path','/插件/view/视图名 或 /插件/json/名称')+'" value="'+
      esc(t?t.route_path:'')+'" style="width:100%">';

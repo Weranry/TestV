@@ -1,0 +1,11 @@
+{
+  "name": "plugin_template",
+  "version": "1.0.0",
+  "description": "示例插件，演示视图 / JSON 路由的最小实现",
+  "author": "",
+  "min_framework_version": "1.0.0",
+  "dependencies": {
+    "plugins": [],
+    "python": []
+  }
+}

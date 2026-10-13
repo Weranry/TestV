@@ -81,7 +81,7 @@ CONFIG_LABELS = {
     'BACKUP_KEEP_DAYS':          {'label':'备份保留天数','desc':'超过这些天的备份自动删除；0=不限。与保留份数是"超出任一即删"','category':'备份'},
     'BACKUP_AUTO_ENABLE':        {'label':'启用自动备份','desc':'0=关闭，1=开启。开启后按下面的时刻做整库快照，多实例时只有 leader 执行','category':'备份'},
     'BACKUP_AUTO_TIMES':         {'label':'自动备份时刻','desc':'HH:MM，空格或逗号分隔可写多个（如 03:30 15:00）；按面板配置的时区解释','category':'备份'},
-    'UPDATE_MODE':               {'label':'更新模式','desc':'off=不更新；download=只把远端拉回本地备用，工作区不改；auto=到点自动拉取并覆盖框架文件，成功即重启。更新范围只含框架与依赖清单，plugins/ 与 data/ 永不改动','category':'更新'},
+    'UPDATE_MODE':               {'label':'更新模式','desc':'off=不更新；download=仅下载备用；auto=自动更新，成功后重启（只更新框架，不影响插件与数据）','category':'更新'},
     'UPDATE_REMOTE':             {'label':'git 远端名','desc':'默认 origin。更新从该远端拉取','category':'更新'},
     'UPDATE_BRANCH':             {'label':'更新分支','desc':'留空=当前所在分支','category':'更新'},
     'UPDATE_AUTO_TIMES':         {'label':'自动更新时刻','desc':'HH:MM，空格或逗号分隔可写多个（如 04:00 16:00）；按面板配置的时区解释，仅在更新模式为 auto 时生效','category':'更新'},

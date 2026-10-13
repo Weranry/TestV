@@ -11,6 +11,15 @@ eInkViews 是为 Open ePaper Link 设计的墨水屏图像渲染与分发服务�
 - 提供 RESTful API 给设备或其他系统拉取
 - 支持 Vercel Serverless 部署
 
+## 获取代码
+
+```bash
+git clone https://github.com/Weranry/TestV.git
+cd TestV
+```
+
+**从该地址克隆出来的目录 `origin` 即指向本仓库**，这也是面板内「自更新」（设置页「关于」的检查更新 / 更新并重启，见 [`.trae/wiki/部署.md`](.trae/wiki/部署.md)）能工作的前提：它要求工作目录是一个 git 检出，并从远端拉取框架更新。zip / Docker 分发版没有 `.git`，自更新不可用。
+
 ## 运行方式（双入口）
 
 项目有两个入口，职责严格区分，不要混用：
@@ -24,7 +33,7 @@ python -B run.py -prod  # 生产模式：启用鉴权，其余同 dev
 
 包含全部能力：资源缓存、SQLite 数据库（账号/用户组/权限/统计）、请求日志、管理面板 `/admin`。本地测试和自托管生产都用这个入口。
 
-存活探针 `GET /healthz`（**只在本地链路注册**，Vercel 侧没有）返回 `{"success":true,"status":"ok","mode":"dev","version":"26.9.1"}`。它不查库、不渲染、不写请求日志、不占限流额度，也不需要 evkey，专门给 Uptime Kuma / systemd / Docker healthcheck 这类外部监控轮询用——用 `/` 去探活会把 `request_logs` 刷满、还可能被限流。
+存活探针 `GET /healthz`（**只在本地链路注册**，Vercel 侧没有）返回 `{"success":true,"status":"ok","mode":"dev","version":"1.0.18"}`。它不查库、不渲染、不写请求日志、不占限流额度，也不需要 evkey，专门给 Uptime Kuma / systemd / Docker healthcheck 这类外部监控轮询用——用 `/` 去探活会把 `request_logs` 刷满、还可能被限流。
 
 Prometheus 指标出口 `GET /metrics`（同样只在本地链路注册，Prometheus 文本格式，手写于 `modules/utils/metrics.py`，不引第三方库）与 `/healthz` 同源：免鉴权、不占限流额度、不写请求日志。默认完全公开，配 `METRICS_TOKEN` 后需带 `?token=` 或 `Authorization: Bearer`，否则 403。指标覆盖进程（模式/版本/运行时长/RSS/库大小）、渲染（并发占用/累计/缓存命中/最近与最慢耗时）、插件请求数、限流拒绝数、共享后端与 leader 状态、日志队列、字体缓存、**鉴权缓存命中率**、预渲染缓存。每个请求还会带 `X-Request-ID`（请求头已有则复用）并在响应头回写，错误堆栈前会打一行 `[req=xxx] METHOD PATH STATUS ms`。
 

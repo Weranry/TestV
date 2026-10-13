@@ -20,7 +20,7 @@ function aboutUpdateMode(m){
 function aboutSchema(s){
   if(!s)return T('about.db_off','未启用');
   var t='v'+(s.version===null||s.version===undefined?'-':s.version)+' / '+T('about.schema_latest','最新')+' v'+s.latest;
-  return s.up_to_date?t:T('about.schema_behind','{v}（落后，重启服务以迁移）',{v:t});
+  return s.up_to_date?t:T('about.schema_behind','{v}（需重启服务）',{v:t});
 }
 /* 检查结果按后端返回的 reason 稳定码取词；detail 只在失败时附上，排障用，长文本截断 */
 function aboutReason(chk){
@@ -53,7 +53,7 @@ function aboutHtml(d){
     _aboutRow(T('about.schema','数据库结构'),aboutSchema(db.schema))+
     '</div></div></div>';
   h+='<div class="card"><div class="card-header"><div class="card-title"><h2>'+esc(T('about.update','更新'))+
-    '</h2><div class="card-desc">'+esc(T('about.update_desc','只更新框架与依赖清单，plugins/ 与 data/ 不动；更新后需要重启进程才生效'))+
+    '</h2><div class="card-desc">'+esc(T('about.update_desc','更新版本'))+
     '</div></div></div><div class="card-body"><div class="info-grid">'+
     _aboutRow(T('about.update_mode','更新模式'),aboutUpdateMode(st.mode))+
     _aboutRow(T('about.update_source','更新来源'),(st.remote||'origin')+' / '+(st.branch||T('about.branch_current','当前分支')))+
@@ -66,7 +66,7 @@ function aboutHtml(d){
     '</h2></div></div><div class="card-body"><div class="about-actions">'+
     '<button class="btn btn-danger" onclick="aboutResetConfig(this)">'+esc(T('about.reset','恢复默认设置'))+'</button>'+
     '<button class="btn btn-danger" onclick="aboutRestart(this)">'+esc(T('about.restart','重启服务'))+'</button>'+
-    '</div><p class="dim small about-note">'+esc(T('about.actions_note','更新与重启都会让服务短暂中断；恢复默认设置只清除全局配置覆盖项。'))+
+    '</div><p class="dim small about-note">'+esc(T('about.actions_note','更新与重启会短暂中断服务。'))+
     '</p></div></div>';
   return h;
 }
@@ -99,7 +99,7 @@ function aboutCheckUpdate(btn){
 function aboutApplyUpdate(btn){
   uiConfirm({
     title:T('about.update_restart','更新并重启'),danger:true,confirmText:T('about.update_restart','更新并重启'),
-    message:T('about.update_confirm_msg','将从远端拉取新版本并覆盖框架文件与依赖清单（plugins/ 与 data/ 不动），完成后自动重启服务。')
+    message:T('about.update_confirm_msg','将更新到最新版本并重启服务。')
   }).then(function(ok){
     if(!ok)return;
     btnBusy(btn,true);
@@ -123,7 +123,7 @@ function aboutApplyUpdate(btn){
 function aboutResetConfig(btn){
   uiConfirm({
     title:T('about.reset','恢复默认设置'),danger:true,confirmText:T('about.reset','恢复默认设置'),
-    message:T('about.reset_confirm_msg','将清除全部全局配置覆盖项，插件配置与用户组不受影响。')
+    message:T('about.reset_confirm_msg','将恢复全部配置为默认值，插件与用户组不受影响。')
   }).then(function(ok){
     if(!ok)return;
     btnBusy(btn,true);
@@ -140,7 +140,7 @@ function aboutResetConfig(btn){
 function aboutRestart(btn){
   uiConfirm({
     title:T('about.restart','重启服务'),danger:true,confirmText:T('about.restart','重启服务'),
-    message:T('about.restart_confirm_msg','服务将短暂中断并自动恢复，进行中的请求会失败。')
+    message:T('about.restart_confirm_msg','服务将短暂中断后自动恢复。')
   }).then(function(ok){
     if(!ok)return;
     btnBusy(btn,true);

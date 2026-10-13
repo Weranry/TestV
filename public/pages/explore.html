@@ -289,7 +289,14 @@ h1{font-size:32px;font-weight:600;letter-spacing:-1px}
 /* 网格：宽屏一行三个，窄屏逐级降到两列 / 单列。卡片高度由内容（四段固定行数）决定，
    不再用 aspect-ratio 撑正方形——内容之外的地方全成了空白 */
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:16px}
-.empty{font-size:14px;color:var(--fg3);padding:32px 0}
+/* 空态：真没插件（或占位兜底页）时铺在这一格网格里。它跨满整行，纵向排一句说明 + 一个
+   「阅读文档」按钮——留白但不至于让人以为页面坏了 */
+.empty{grid-column:1/-1;display:flex;flex-direction:column;align-items:flex-start;gap:12px;
+  font-size:14px;color:var(--fg3);padding:32px 0}
+.empty-btn{display:inline-flex;align-items:center;font-size:13px;font-weight:500;color:var(--fg);
+  text-decoration:none;padding:8px 16px;border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--line);
+  transition:all var(--motion-fast)}
+.empty-btn:hover{color:var(--fg);background:var(--soft)}
 /* ============ 卡片（单面，点击开弹窗） ============ */
 /* 高度不靠 aspect-ratio 撑：四段各自的行数是硬上限——标题 1 行、作者 1 行、描述 3 行、
    用户组 2 行，加起来高度恒定，同一行的卡片因此天然齐平，内容超了截断 */
@@ -365,17 +372,17 @@ h1{font-size:32px;font-weight:600;letter-spacing:-1px}
 <div class="wrap">
   <div class="hd">
     <a class="brand" href="/"><svg class="logo-mark" viewBox="7 -3 128 161.6217803955078" width="20" height="20" aria-hidden="true" focusable="false"><path fill="#8A6DB1" d="M61 86.1962L26.5 106.115C22.5 108.424 17.5 105.537 17.5 100.919L17.5 61.0814C17.5 56.4626 22.5 53.5759 26.5 55.8853L61 75.8038C65 78.1133 65 83.8867 61 86.1962Z"/><path fill="#8A6DB1" d="M119 53.1962L84.5 73.1147C80.5 75.4241 75.5 72.5374 75.5 67.9186L75.5 28.0814C75.5 23.4626 80.5 20.5759 84.5 22.8853L119 42.8038C123 45.1132 123 50.8868 119 53.1962Z"/><path fill="#6E5494" d="M72.3109 27.8923L72.3109 67.7295C72.3109 72.3483 67.3109 75.235 63.3109 72.9256L28.8109 53.007C24.8109 50.6976 24.8109 44.9241 28.8109 42.6147L63.3109 22.6962C67.3109 20.3867 72.3109 23.2735 72.3109 27.8923Z"/><path fill="#6E5494" d="M72.3109 93.8923L72.3109 133.729C72.3109 138.348 67.3109 141.235 63.3109 138.926L28.8109 119.007C24.8109 116.698 24.8109 110.924 28.8109 108.615L63.3109 88.6962C67.3109 86.3867 72.3109 89.2735 72.3109 93.8923Z"/><circle cx="101" cy="96" r="12" fill="#5A4378"/></svg><span>eInkViews</span></a>
-    <span class="ver">v26.16.0</span>
+    <span class="ver">v1.0.18</span>
     <span class="sp"></span>
     
   </div>
   <h1>Plugin explorer</h1>
   <div class="secbar">
     <span class="secbar-t">Plugins</span>
-    <span class="secbar-c">3 running</span>
+    <span class="secbar-c">0 running</span>
   </div>
   <div class="grid" id="explore-grid">
-<article class="xcard" tabindex="0" role="button" data-meta="1.0.0 · eInkViews · 1 routes" aria-label="github"><span class="xname">github</span><span class="xby">eInkViews</span><p class="xdesc">GitHub 用户状态与贡献图展示</p><template class="xdetail"><div class="sec">Routes</div><div class="rt"><span class="m">GET</span><div class="rtb"><span class="p">/github/view/dashboard</span><div class="rtsub"><span class="rtsub-k">Sizes</span><span class="rtsub-v">h2xl</span><span class="rtsub-v">hxl</span></div></div></div><div class="sec">Plugin parameters</div><div class="pmrow"><span class="pmk">username</span></div></template></article><article class="xcard" tabindex="0" role="button" data-meta="1.0.0 · 3 routes" aria-label="plugin_template"><span class="xname">plugin_template</span><span class="xby"></span><p class="xdesc">示例插件，演示视图 / JSON 路由的最小实现</p><template class="xdetail"><div class="sec">Routes</div><div class="rt"><span class="m">GET</span><div class="rtb"><span class="p">/plugin_template/json/demojson</span></div></div><div class="rt"><span class="m">GET</span><div class="rtb"><span class="p">/plugin_template/view/detail</span><div class="rtsub"><span class="rtsub-k">Sizes</span><span class="rtsub-v">h2xl</span><span class="rtsub-v">hxl</span></div></div></div><div class="rt"><span class="m">GET</span><div class="rtb"><span class="p">/plugin_template/view/summary</span><div class="rtsub"><span class="rtsub-k">Sizes</span><span class="rtsub-v">h2xl</span><span class="rtsub-v">hxl</span></div></div></div><div class="sec">Plugin parameters</div><div class="pmrow"><span class="pmk">a</span><span class="pmk">b</span><span class="pmk">left</span><span class="pmk">note</span><span class="pmk">right</span><span class="pmk">subtitle</span><span class="pmk">title</span><span class="pmk">tz</span></div></template></article><article class="xcard" tabindex="0" role="button" data-meta="1.0.0 · 1 routes" aria-label="weather_landscape"><span class="xname">weather_landscape</span><span class="xby"></span><p class="xdesc">天气横向可视化插件</p><template class="xdetail"><div class="sec">Routes</div><div class="rt"><span class="m">GET</span><div class="rtb"><span class="p">/weather_landscape/view/weather_landscape</span><div class="rtsub"><span class="rtsub-k">Sizes</span><span class="rtsub-v">h2xl</span><span class="rtsub-v">hxl</span></div></div></div><div class="sec">Plugin parameters</div><div class="pmrow"><span class="pmk">key</span><span class="pmk">lat</span><span class="pmk">lon</span><span class="pmk">pressure_max</span><span class="pmk">pressure_min</span><span class="pmk">units</span></div></template></article>
+<p class="empty"><span>No plugin is running right now</span><a class="empty-btn" href="https://github.com/Weranry/eInkViewsEvo/wiki" target="_blank" rel="noopener noreferrer">Read the docs</a></p>
   </div>
 </div>
 <div class="xmodal" id="xmodal" hidden>

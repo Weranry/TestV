@@ -1049,7 +1049,7 @@ function quotaPaneHtml(d){
     '<input class="input" id="q-rreason" placeholder="'+T('user.reset_reason_ph','重置原因（选填，会记入变动记录）')+'"'+(unlimited?' disabled':'')+'>'+
     '<button class="btn btn-sm" data-act="quota-reset" data-id="'+d.account_id+'"'+(unlimited?' disabled':'')+'>'+T('user.manual_reset','手动重置')+'</button>'+
     '</div>';
-  h+='<div class="small dim" style="margin-top:8px">'+T('user.quota_help','发放累加在账号上、跨周期保留，填负数即回收（调整后总额度不能小于 1）；重置只把「已用」归零，不动已发放的额度。')+'</div>';
+  h+='<div class="small dim" style="margin-top:8px">'+T('user.quota_help','发放的额度累加到账号、长期有效，填负数即回收；重置只清除本周期用量，已发放额度保留。')+'</div>';
   /* 图例挂在标题右侧而不是独占一行：弹窗空间紧凑，多一行会把表格再往下推 */
   h+='<div class="sec-title" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">'+T('user.log_title','变动记录')+
     '<span class="dot-legend" style="margin-top:0"><span class="lg-row">'+

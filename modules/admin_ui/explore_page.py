@@ -48,7 +48,14 @@ h1{font-size:32px;font-weight:600;letter-spacing:-1px}
 /* 网格：宽屏一行三个，窄屏逐级降到两列 / 单列。卡片高度由内容（四段固定行数）决定，
    不再用 aspect-ratio 撑正方形——内容之外的地方全成了空白 */
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:16px}
-.empty{font-size:14px;color:var(--fg3);padding:32px 0}
+/* 空态：真没插件（或占位兜底页）时铺在这一格网格里。它跨满整行，纵向排一句说明 + 一个
+   「阅读文档」按钮——留白但不至于让人以为页面坏了 */
+.empty{grid-column:1/-1;display:flex;flex-direction:column;align-items:flex-start;gap:12px;
+  font-size:14px;color:var(--fg3);padding:32px 0}
+.empty-btn{display:inline-flex;align-items:center;font-size:13px;font-weight:500;color:var(--fg);
+  text-decoration:none;padding:8px 16px;border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--line);
+  transition:all var(--motion-fast)}
+.empty-btn:hover{color:var(--fg);background:var(--soft)}
 /* ============ 卡片（单面，点击开弹窗） ============ */
 /* 高度不靠 aspect-ratio 撑：四段各自的行数是硬上限——标题 1 行、作者 1 行、描述 3 行、
    用户组 2 行，加起来高度恒定，同一行的卡片因此天然齐平，内容超了截断 */
