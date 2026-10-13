@@ -1,35 +1,8 @@
 {
-  "version": 2,
-  "builds": [
-    {
-      "src": "app.py",
-      "use": "@vercel/python"
-    },
-    {
-      "src": "public/**",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/favicon.ico",
-      "dest": "/public/favicon.ico"
-    },
-    {
-      "src": "/public/(.*)",
-      "dest": "/public/$1"
-    },
-    {
-      "src": "/",
-      "dest": "/public/pages/index.html"
-    },
-    {
-      "src": "/explore",
-      "dest": "/public/pages/explore.html"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/app.py"
-    }
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "python3 -B -m modules.register.explore_static 2>&1 || python -B -m modules.register.explore_static 2>&1 || echo 'explore_static: WARNING skipped (build container has no python3, or pip deps are not importable here); keeping the committed public/pages/explore.html'",
+  "rewrites": [
+    { "source": "/", "destination": "/pages/index.html" },
+    { "source": "/explore", "destination": "/pages/explore.html" }
   ]
 }

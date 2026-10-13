@@ -1,8 +1,10 @@
 """把访客导航页 `/explore` 预渲染成静态文件 `public/pages/explore.html`。
 
 为什么要有这个生成步骤：Vercel 侧不注册 `/explore` 端点（`app_core` 只在 is_local 分支挂
-它），那条链路由 `vercel.json` 把 `/explore` 直接指向 `public/pages/explore.html`，和首页
+它），那条链路由 `vercel.json` 的 `rewrites` 把 `/explore` 指向静态页，和首页
 `public/pages/index.html` 同一套路——走边缘静态直出，不经过 Serverless 函数、零冷启动。
+（`public/**` 经 Vercel 的 CDN 发布后前缀被摘掉：`public/pages/explore.html` 对外是
+`/pages/explore.html`，故 `rewrites` 的 destination 写 `/pages/…` 而不是 `/public/pages/…`。）
 
 什么时候必须重跑：只要插件目录的形态变了，这一页的内容就变了——新增/删除插件、改
 `plugin.json`、增删视图种类（可选尺寸列在路由下面）、改 `plugin_config.py` 的 DEFAULT_ARGS
@@ -15,10 +17,16 @@
 是最新的了。CI 侧由 `ExploreStaticPageTest` 断言「提交的文件 == 生成器当前输出」，真漏了
 会在测试阶段直接变红。手动命令仍然保留，用于「不想起服务、只想刷这一页」的场合。
 
-为什么不是 Vercel 构建期自动跑：本仓库用的是 `vercel.json` 的 `builds`（legacy）写法，
-Vercel 对带 `builds` 的项目会**整体忽略 Build Command 与项目设置里的构建配置**，因此平台
-侧没有可以挂脚本的钩子。要改成构建期自动生成，得把配置迁到 `functions` 写法并把入口挪到
-`api/`，那是另一件事（会动到函数打包方式，未经验证不轻易改）。
+**Vercel 构建期会自动跑这一页**：`vercel.json` 里挂了 `buildCommand`，每次部署都会先执行
+本模块，产物随本次部署一起上线。原先用不了构建期生成，是因为老配置走 `builds`（legacy）
+写法，而 Vercel 对带 `builds` 的项目会**整体忽略 Build Command**，平台侧没有可挂脚本的钩子；
+现已去掉 `builds`、改用 `buildCommand` + `rewrites`，这一步才真正落在构建期。
+
+构建命令是**失败即降级**的（`… || … || echo '…skipped…'`，恒以退出码 0 结束）：Vercel 构建
+镜像里有没有 `python3`、`pip install -r requirements.txt` 装出来的依赖能不能被 `python3 -m`
+import 到，这两件事在本地都验证不了。任何一环不成立，这一步就只打印一行 WARNING、保留仓库里
+已提交的 `public/pages/explore.html`——最坏情况退化成「等同迁移前」，不会因新假设没成立而把
+整个部署打挂。是否真跑成功，看部署日志里这一行是「已生成」还是「WARNING skipped」。
 
 生成环境与线上环境的差异（体现在这一页上的）：
   * 「可用用户组」整行不渲染。它的数据源是**运行实例自己的库**，而静态页是在构建机上生成的，

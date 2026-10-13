@@ -61,7 +61,7 @@ function refreshOverview(){
     document.getElementById('ov-kpi-bottom').innerHTML=
       defItem(T('overview.kpi_plugins','插件数'),d.plugin_count)+
       defItem(T('overview.kpi_accounts','账号数'),d.user_count)+
-      defItem(T('overview.kpi_evkey','evkey 数'),num(d.evkey_count))+
+      defItem(T('overview.kpi_evkey','EVkey 数'),num(d.evkey_count))+
       defItem(T('overview.kpi_hit_rate','缓存命中率'),(c.enabled?c.hit_rate+'%':T('overview.cache_off','已停用')));
     renderOverviewInfo(d);
     renderOverviewHealth(d.health||{});
@@ -86,7 +86,7 @@ function renderSessions(d,cid){
   h+='<table><thead><tr><th>'+T('stats.col_start','开始时间')+'</th><th>'+T('stats.col_duration','持续时间')+'</th><th>'+T('stats.col_mode','模式')+'</th><th>'+T('stats.col_version','版本')+'</th><th class="num">'+T('stats.col_requests','请求')+'</th><th class="num">'+T('stats.col_errors','错误')+'</th></tr></thead><tbody>';
   pg.rows.forEach(function(s){
     var running=!s.end_time;
-    h+='<tr><td>'+fmtDT(s.start_time)+(running?' <span class="badge badge-on" style="margin-left:6px">'+T('stats.session_running','运行中')+'</span>':'')+'</td>'+
+    h+='<tr><td>'+fmtDT(s.start_time)+(running?' <span class="badge badge-on" style="margin-left:8px">'+T('stats.session_running','运行中')+'</span>':'')+'</td>'+
       '<td>'+fmtUptime(s.uptime_seconds)+'</td>'+
       '<td>'+esc(s.mode||'-')+'</td>'+
       '<td class="mono">'+esc(s.version||'-')+'</td>'+
@@ -137,7 +137,7 @@ function showAnnounceModal(){
     '<label>'+T('announce.title_label','标题')+'</label>'+
     '<input class="input" id="ann-title" autocomplete="off">'+
     '<label>'+T('announce.content_label','内容（选填）')+'</label>'+
-    '<textarea class="input" id="ann-content" rows="4" style="height:auto;min-height:96px;padding:8px 10px;line-height:1.6;resize:vertical"></textarea>'+
+    '<textarea class="input" id="ann-content" rows="4" style="height:auto;min-height:96px;padding:8px 16px;line-height:1.6;resize:vertical"></textarea>'+
     '<label>'+T('announce.scope_label','可见范围')+'</label>'+
     '<div class="ck-row" id="ann-scope">'+T('msg.loading','加载中...')+'</div>'+
     '<div class="modal-actions">'+

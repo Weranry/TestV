@@ -162,7 +162,7 @@ function togglePluginRoutes(btn){
     // 这里按父行格子数现算，父表改列数时不会再出现写死的数字过期。
     var cols=tr.children.length||4;
     var h='<td colspan="'+cols+'">';
-    if(!routes.length)h+='<div class="empty" style="padding:12px 0">'+T('stats.plugin_no_routes','该插件暂无请求记录')+'</div>';
+    if(!routes.length)h+='<div class="empty" style="padding:16px 0">'+T('stats.plugin_no_routes','该插件暂无请求记录')+'</div>';
     else{
       h+='<table class="stat-table">'+COLS6+'<thead><tr><th>'+T('stats.col_path','路径')+'</th><th class="num">'+T('stats.col_requests','请求')+'</th><th class="num">'+T('stats.col_errors','错误')+'</th><th class="num">'+T('stats.col_avg','平均耗时')+'</th><th class="num">p50</th><th class="num">p95</th></tr></thead><tbody>';
       routes.forEach(function(r){

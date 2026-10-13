@@ -1,6 +1,6 @@
 """「我的」页：用户控制台整页 与 管理面板「我的」分页 共用同一套卡片与脚本。
 
-两边展示的是同一份个人数据（额度 / 会员 / 额度记录 / 权限记录 / 权限 / API Key / 改密），
+两边展示的是同一份个人数据（额度 / 会员 / 额度记录 / 权限记录 / 权限 / EVkey / 改密），
 以前是两份各自实现的界面，改一边忘一边就会出现「用户端和管理端长得不一样」。
 卡片（ACCOUNT_CARDS）、样式（ACCOUNT_CSS）、脚本（ACCOUNT_JS）都只此一份：
 用户控制台整页引用，管理面板的 #page-account 分页同样引用，管理端少一张「站内信」卡片
@@ -15,26 +15,35 @@ ACCOUNT_CSS = r'''
    设 900px 会让它的卡片比别的分页窄一截。用户控制台的 main 同样是 1280px，两端一致 */
 /* 账号信息：一行 label: value 平铺。这里**不要**用 .grid/.stat —— 那是带 ring 的小方块，
    套在卡片里就成了「卡片内套卡片」 */
-.idline{display:flex;flex-wrap:wrap;gap:10px 36px;font-size:13px}
+.idline{display:flex;flex-wrap:wrap;gap:8px 40px;font-size:14px}
 .idline>span{color:var(--fg3)}
 .idline b{margin-left:8px;font-weight:500;color:var(--fg)}
 .idline b.num{font-variant-numeric:tabular-nums}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px}
-.stat{padding:16px 20px;border-radius:var(--r-md);box-shadow:var(--ring)}
-.stat .k{font-size:12px;color:var(--fg2);margin-bottom:6px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px}
+.stat{padding:16px 24px;border-radius:var(--r-md);box-shadow:var(--ring)}
+.stat .k{font-size:12px;color:var(--fg2);margin-bottom:8px}
 /* 数值用等宽数字对齐即可：整行改等宽字体会让「不限」「1000 次 / 每月」这类中文混排露出字体切换痕迹 */
 .stat .v{font-size:20px;font-weight:600;letter-spacing:-.5px;font-variant-numeric:tabular-nums}
 .chips{display:flex;flex-wrap:wrap;gap:8px}
-.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 11px;border-radius:9999px;font-size:12px;font-weight:500;box-shadow:0 0 0 1px var(--line);color:var(--fg2)}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:4px 8px;border-radius:9999px;font-size:12px;font-weight:500;box-shadow:0 0 0 1px var(--line);color:var(--fg2)}
 .chip .dot{width:8px;height:8px;border-radius:50%;background:var(--blue)}
 .chip.off{color:var(--fg3);text-decoration:line-through}
 .chip.off .dot{background:var(--faint)}
-.sub{font-size:12px;color:var(--fg2);margin-bottom:10px}
+.sub{font-size:12px;color:var(--fg2);margin-bottom:8px}
 /* 行内表单：输入框撑满剩余宽度，密码框外面多包一层 .pw（可见切换），一并在这里撑宽 */
-.apply-row{display:flex;gap:10px;align-items:center}
+.apply-row{display:flex;gap:8px;align-items:center}
 .apply-row .input,.apply-row .pw>.input{width:100%}
 .apply-row .input{margin-bottom:0}
 .apply-row>.pw{flex:1 1 160px;min-width:0}
+
+/* ============ 分页切换（概览 / EVkey / 我的设备） ============
+   外观与面板的 .subtabs/.stab 同款（那对类只写在管理面板 CSS 里，用户控制台没有，
+   而 ACCOUNT_CARDS 两端共用，所以这里自带一份；两端各注入一次 ACCOUNT_CSS，仍只有这一份定义） */
+.acc-tabs{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px}
+.acc-tab{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 16px;border-radius:64px;font-size:14px;font-weight:500;color:var(--fg2);cursor:pointer;box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);transition:all var(--motion-fast);background:var(--ds-background-100);white-space:nowrap;flex-shrink:0}
+.acc-tab:hover{color:var(--fg);background:var(--ds-gray-100)}
+.acc-tab.on{background:var(--ds-gray-1000);color:var(--ds-background-100);box-shadow:inset 0 0 0 1px var(--ds-gray-1000)}
+.acc-pane>.card:last-child{margin-bottom:0}
 
 /* ============ 我的设备：入口卡片 + 页内子视图 ============
    子视图是**纯 DOM 切换**的页内视图，不依赖面板那套 .page / switchTab——
@@ -46,38 +55,49 @@ ACCOUNT_CSS = r'''
 .dev-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
 @media (max-width:900px){.dev-grid{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:560px){.dev-grid{grid-template-columns:1fr}}
-.dev-item{padding:14px 16px;border-radius:var(--r-md);box-shadow:var(--ring);cursor:pointer;transition:box-shadow var(--motion-fast)}
+.dev-item{padding:16px;border-radius:var(--r-md);box-shadow:var(--ring);cursor:pointer;transition:box-shadow var(--motion-fast)}
 .dev-item:hover{box-shadow:var(--card-shadow)}
 .dev-item .t{display:flex;align-items:center;gap:8px;font-weight:500;margin-bottom:8px}
 .dev-item .m{font-size:12px;color:var(--fg2);line-height:1.7}
 .dev-item .m.dim{color:var(--fg3)}
-.dev-sec{margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}
+.dev-sec{margin-top:24px;padding-top:24px;border-top:1px solid var(--line)}
 .dev-sec:first-of-type{border-top:none;padding-top:0}
-.dev-radios{display:flex;gap:18px;flex-wrap:wrap}
-.dev-radios label{display:inline-flex;align-items:center;gap:6px;margin:0;font-size:13px;color:var(--fg)}
-.dev-check{display:flex!important;align-items:center;gap:8px;margin:16px 0 0!important;font-size:13px;color:var(--fg)!important}
-.dev-two{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.dev-radios{display:flex;gap:16px;flex-wrap:wrap}
+.dev-radios label{display:inline-flex;align-items:center;gap:8px;margin:0;font-size:14px;color:var(--fg)}
+.dev-check{display:flex!important;align-items:center;gap:8px;margin:16px 0 0!important;font-size:14px;color:var(--fg)!important}
+.dev-two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
 @media (max-width:560px){.dev-two{grid-template-columns:1fr}}
-.dev-task{padding:14px 16px;border-radius:var(--r-sm);box-shadow:var(--ring);margin-top:12px}
-.dev-task-hd{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.dev-task{padding:16px;border-radius:var(--r-sm);box-shadow:var(--ring);margin-top:16px}
+.dev-task-hd{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .dev-task-hd .grow{flex:1 1 160px;min-width:0}
 .dev-task-hd .grow .input{margin-bottom:0}
-.dev-task .acts{display:flex;gap:6px;align-items:center}
-.dev-task .pick{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:12px}
+.dev-task .acts{display:flex;gap:8px;align-items:center}
+.dev-task .pick{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:16px}
 @media (max-width:560px){.dev-task .pick{grid-template-columns:1fr}}
 .dev-task .pick .input{margin-bottom:0}
-.dev-params{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
+.dev-params{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
 @media (max-width:560px){.dev-params{grid-template-columns:1fr}}
 .dev-param{display:flex!important;flex-direction:column;gap:4px;margin:0!important}
 .dev-param>span{font-size:12px;color:var(--fg3)}
 .dev-param .input{margin-bottom:0}
 /* 共享协作：属主一行一个已共享的账号（名字 + 解除），被共享方只有一行说明 */
-.dev-share-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-radius:var(--r-sm);box-shadow:var(--ring);margin-top:8px}
+.dev-share-row{display:flex;align-items:center;gap:8px;padding:8px 16px;border-radius:var(--r-sm);box-shadow:var(--ring);margin-top:8px}
 .dev-share-row .grow{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 '''
 
 # 卡片列表。管理端与用户端逐字相同，用户端在它前面多插一张「站内信」卡片
 ACCOUNT_CARDS = r'''
+<!-- 三个分页由 ACCOUNT_JS 的 acctTab() 纯 DOM 切换：ACCOUNT_CSS 两端都注入，标签样式自带，
+     不走面板那套 .page / switchTab（用户控制台整页没有分页机制） -->
+<div class="acc-tabs">
+  <span class="acc-tab on" data-act="acct-tab" data-tab="overview">{{T:account.tab_overview}}</span>
+  <span class="acc-tab" data-act="acct-tab" data-tab="keys">{{T:account.tab_keys}}</span>
+  <span class="acc-tab" data-act="acct-tab" data-tab="devices">{{T:account.tab_devices}}</span>
+</div>
+
+<!-- ============ 第一页：概览（账号信息 / 额度 / 会员 / 权限 / 改密） ============ -->
+<div class="acc-pane" id="acct-pane-overview">
+
 <div class="card">
   <div class="card-header"><div class="card-title"><h2>{{T:account.info_title}}</h2></div></div>
   <div class="card-body"><div class="idline" id="acct-info"></div></div>
@@ -88,21 +108,7 @@ ACCOUNT_CARDS = r'''
     <div class="card-title"><h2>{{T:account.quota_title}}</h2><div class="card-desc">{{T:account.quota_desc}}</div></div>
     <small class="dim" id="group-name"></small>
   </div>
-  <div class="card-body"><div class="grid" id="quota-grid"></div><div class="grid" id="quota-usage" style="margin-top:12px"></div></div>
-</div>
-
-<div class="card">
-  <div class="card-header">
-    <div class="card-title"><h2>{{T:account.member_title}}</h2></div>
-    <small id="mem-state"></small>
-  </div>
-  <div class="card-body">
-    <div class="grid" id="mem-grid"></div>
-    <div class="apply-row" id="mem-activate" style="margin-top:14px">
-      <input class="input" id="mem-code" placeholder="{{T:account.activation_ph}}" autocomplete="off">
-      <button class="btn btn-primary" data-act="redeem">{{T:account.redeem}}</button>
-    </div>
-  </div>
+  <div class="card-body"><div class="grid" id="quota-grid"></div><div class="grid" id="quota-usage" style="margin-top:16px"></div></div>
 </div>
 
 <div class="card" id="qlog-card" style="display:none">
@@ -118,7 +124,21 @@ ACCOUNT_CARDS = r'''
   </div>
   <div class="card-body">
     <div id="qlog-table"></div>
-    <div class="flex" id="qlog-bar" style="justify-content:flex-end;margin-top:12px;display:none"></div>
+    <div class="flex" id="qlog-bar" style="justify-content:flex-end;margin-top:16px;display:none"></div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title"><h2>{{T:account.member_title}}</h2></div>
+    <small id="mem-state"></small>
+  </div>
+  <div class="card-body">
+    <div class="grid" id="mem-grid"></div>
+    <div class="apply-row" id="mem-activate" style="margin-top:16px">
+      <input class="input" id="mem-code" placeholder="{{T:account.activation_ph}}" autocomplete="off">
+      <button class="btn btn-primary" data-act="redeem">{{T:account.redeem}}</button>
+    </div>
   </div>
 </div>
 
@@ -136,7 +156,7 @@ ACCOUNT_CARDS = r'''
   </div>
   <div class="card-body">
     <div id="mlog-table"></div>
-    <div class="flex" id="mlog-bar" style="justify-content:flex-end;margin-top:12px;display:none"></div>
+    <div class="flex" id="mlog-bar" style="justify-content:flex-end;margin-top:16px;display:none"></div>
   </div>
 </div>
 
@@ -147,9 +167,35 @@ ACCOUNT_CARDS = r'''
   <div class="card-body">
     <div class="sub">{{T:account.perm_plugins}}</div>
     <div class="chips" id="perm-plugins"><span class="dim">{{T:msg.loading}}</span></div>
-    <div id="perm-routes-wrap" style="margin-top:18px;display:none">
+    <div id="perm-routes-wrap" style="margin-top:16px;display:none">
       <div class="sub">{{T:account.perm_routes}}</div>
       <div class="chips" id="perm-routes"></div>
+    </div>
+  </div>
+</div>
+
+<div class="card cfg">
+  <div class="card-header"><div class="card-title"><h2>{{T:account.chpass_title}}</h2></div></div>
+  <div class="card-body">
+    <div class="apply-row">
+      <div class="pw"><input class="input" type="password" id="pw1" placeholder="{{T:account.new_pw_ph}}" autocomplete="new-password"><button type="button" class="pw-eye" data-act="pw-toggle" aria-pressed="false"></button></div>
+      <div class="pw"><input class="input" type="password" id="pw2" placeholder="{{T:reset.confirm_password}}" autocomplete="new-password"><button type="button" class="pw-eye" data-act="pw-toggle" aria-pressed="false"></button></div>
+      <button class="btn btn-primary" data-act="chpass">{{T:account.chpass_submit}}</button>
+    </div>
+  </div>
+</div>
+
+</div><!-- /acct-pane-overview -->
+
+<!-- ============ 第二页：EVkey 管理（申请在上、列表在下） ============ -->
+<div class="acc-pane" id="acct-pane-keys" style="display:none">
+
+<div class="card cfg">
+  <div class="card-header"><div class="card-title"><h2>{{T:account.apikey_new_title}}</h2></div></div>
+  <div class="card-body">
+    <div class="apply-row">
+      <input class="input" id="key-desc" placeholder="{{T:account.apikey_note_ph}}" autocomplete="off">
+      <button class="btn btn-primary" data-act="key-apply">{{T:account.apikey_gen}}</button>
     </div>
   </div>
 </div>
@@ -172,30 +218,13 @@ ACCOUNT_CARDS = r'''
   </div>
 </div>
 
-<div class="card cfg">
-  <div class="card-header"><div class="card-title"><h2>{{T:account.apikey_new_title}}</h2></div></div>
-  <div class="card-body">
-    <div class="apply-row">
-      <input class="input" id="key-desc" placeholder="{{T:account.apikey_note_ph}}" autocomplete="off">
-      <button class="btn btn-primary" data-act="key-apply">{{T:account.apikey_gen}}</button>
-    </div>
-  </div>
-</div>
+</div><!-- /acct-pane-keys -->
 
-<div class="card cfg">
-  <div class="card-header"><div class="card-title"><h2>{{T:account.chpass_title}}</h2></div></div>
-  <div class="card-body">
-    <div class="apply-row">
-      <div class="pw"><input class="input" type="password" id="pw1" placeholder="{{T:account.new_pw_ph}}" autocomplete="new-password"><button type="button" class="pw-eye" data-act="pw-toggle" aria-pressed="false"></button></div>
-      <div class="pw"><input class="input" type="password" id="pw2" placeholder="{{T:reset.confirm_password}}" autocomplete="new-password"><button type="button" class="pw-eye" data-act="pw-toggle" aria-pressed="false"></button></div>
-      <button class="btn btn-primary" data-act="chpass">{{T:account.chpass_submit}}</button>
-    </div>
-  </div>
-</div>
-
-<!-- ============ 我的设备：入口卡片 + 页内子视图 ============
+<!-- ============ 第三页：我的设备（入口卡片 + 页内子视图） ============
      卡片本体也挂 data-act="dev-open"：点整张卡都能进入，不必去瞄那个按钮。
-     子视图初始 display:none，靠 devOpen/devClose 与兄弟节点互换显隐 -->
+     子视图初始 display:none，靠 devOpen/devClose 与**同分页内的**兄弟节点互换显隐 -->
+<div class="acc-pane" id="acct-pane-devices" style="display:none">
+
 <div class="card dev-card" id="acct-dev-card" data-act="dev-open">
   <div class="card-header">
     <div class="card-title"><h2>{{T:account.dev_title}}</h2><div class="card-desc">{{T:account.dev_desc}}</div></div>
@@ -203,14 +232,14 @@ ACCOUNT_CARDS = r'''
   </div>
   <div class="card-body">
     <div class="sub" id="dev-summary"></div>
-    <div style="margin-top:14px"><button class="btn" data-act="dev-open">{{T:account.dev_manage}}</button></div>
+    <div style="margin-top:16px"><button class="btn" data-act="dev-open">{{T:account.dev_manage}}</button></div>
   </div>
 </div>
 
 <div id="acct-dev-view" style="display:none">
-  <div class="flex" style="align-items:center;gap:12px;margin-bottom:16px">
+  <div class="flex" style="align-items:center;gap:16px;margin-bottom:16px">
     <button class="btn btn-sm" data-act="dev-back">{{T:account.dev_back}}</button>
-    <h2 style="margin:0;font-size:18px;font-weight:600;letter-spacing:-.4px">{{T:account.dev_title}}</h2>
+    <h2 style="margin:0;font-size:20px;font-weight:600;letter-spacing:-.4px">{{T:account.dev_title}}</h2>
   </div>
 
   <div class="card">
@@ -236,13 +265,23 @@ ACCOUNT_CARDS = r'''
     </div>
   </div>
 </div>
+
+</div><!-- /acct-pane-devices -->
 '''
 
 # 页面脚本。依赖各页壳提供的基础件：R / esc / toast / btnBusy / uiConfirm / alertModal /
 # showSecret / copyText / fmtDT / TZ_OFFSET / pgSlice。分页器在共享层，两个页壳都注入了它，
-# 所以 API Key 列表可以直接用；额度记录与权限记录两张卡仍是自带上一页/下一页的旧写法。
+# 所以 EVkey 列表可以直接用；额度记录与权限记录两张卡仍是自带上一页/下一页的旧写法。
 ACCOUNT_JS = r'''/* ================= 「我的」页（用户控制台 / 管理面板「我的」分页共用） ================= */
-/* evkey 持有上限三态：-1 = 不限，0 = 该组禁止创建，N = 最多 N 个；审批中的申请同样占名额 */
+/* 分页切换：概览 / EVkey / 我的设备。纯 DOM 显隐，不走面板那套 .page / switchTab
+   ——用户控制台整页没有分页机制，用面板的 tab 的话那边点了什么都不会发生 */
+function acctTab(name){
+  var tabs=document.querySelectorAll('[data-act="acct-tab"]');
+  for(var i=0;i<tabs.length;i++)tabs[i].classList.toggle('on',tabs[i].dataset.tab===name);
+  var panes=document.querySelectorAll('.acc-pane');
+  for(var j=0;j<panes.length;j++)panes[j].style.display=(panes[j].id==='acct-pane-'+name)?'':'none';
+}
+/* EVkey 持有上限三态：-1 = 不限，0 = 该组禁止创建，N = 最多 N 个；审批中的申请同样占名额 */
 var _keyLimit={max:-1,current:0,pending:0};
 function keyFull(){return _keyLimit.max>=0&&_keyLimit.current+_keyLimit.pending>=_keyLimit.max}
 function keyLimitNote(){
@@ -253,10 +292,10 @@ function keyLimitNote(){
   return s;
 }
 function keyFullMsg(){
-  if(_keyLimit.max===0)return T('account.evkey_forbidden_msg','当前用户组不允许创建 evkey，如需使用请联系管理员调整用户组配额。');
-  return T('account.evkey_limit_msg','已持有 {cur} 个、审批中 {pending} 个，上限 {max} 个。如需继续，请先删除多余的 Key。',{cur:_keyLimit.current,pending:_keyLimit.pending,max:_keyLimit.max});
+  if(_keyLimit.max===0)return T('account.evkey_forbidden_msg','当前用户组不允许创建 EVkey，如需使用请联系管理员调整用户组配额。');
+  return T('account.evkey_limit_msg','已持有 {cur} 个、审批中 {pending} 个，上限 {max} 个。如需继续，请先删除多余的 EVkey。',{cur:_keyLimit.current,pending:_keyLimit.pending,max:_keyLimit.max});
 }
-/* 已发放的 Key 与「审批中」的申请合成一张表、统一分页：一行一种状态，翻页后不会漏看申请。
+/* 已发放的 EVkey 与「审批中」的申请合成一张表、统一分页：一行一种状态，翻页后不会漏看申请。
    审批中的申请也是一行：只回「已提交」四个字的话，用户回到列表里看不到任何东西，
    会以为申请丢了、反复提交（每次提交都占一个名额） */
 var _keyItems=[],_KEY_PER=5;
@@ -291,12 +330,12 @@ function keysRender(){
   if(sig===_keysSig)return;
   _keysSig=sig;
   if(!_keyItems.length){
-    t.innerHTML='<div class="empty">'+T('account.no_keys','还没有 API Key，可在下方申请一个。')+'</div>';
+    t.innerHTML='<div class="empty">'+T('account.no_keys','还没有 EVkey，可在上方申请一个。')+'</div>';
     if(bar)bar.style.display='none';
     return;
   }
   var pg=pgSlice(_keyItems,'my-keys',_KEY_PER);
-  var h='<table><thead><tr><th>Key</th><th>'+T('user.col_desc','说明')+'</th><th class="col-dot">'+T('user.legend_status','状态')+'</th><th>'+T('prerender.detail_created','创建时间')+'</th><th class="col-act">'+T('core.col_action','操作')+'</th></tr></thead><tbody>';
+  var h='<table><thead><tr><th>EVkey</th><th>'+T('user.col_desc','说明')+'</th><th class="col-dot">'+T('user.legend_status','状态')+'</th><th>'+T('prerender.detail_created','创建时间')+'</th><th class="col-act">'+T('core.col_action','操作')+'</th></tr></thead><tbody>';
   pg.rows.forEach(function(it){h+=it.kind==='key'?keyRowHtml(it.k):appRowHtml(it.a)});
   t.innerHTML=h+'</tbody></table>';
   if(bar){bar.innerHTML=pg.bar;bar.style.display=''}
@@ -308,16 +347,16 @@ function loadKeys(){
     _keyLimit={max:_intVal(d.max,-1),current:d.current||0,pending:d.pending||0};
     document.getElementById('key-count').textContent=keyLimitNote();
     var btn=document.querySelector('[data-act="key-apply"]');
-    if(btn){btn.disabled=keyFull();btn.title=keyFull()?(_keyLimit.max===0?T('account.evkey_no_create','当前用户组不允许创建 evkey'):T('account.evkey_limit_hit','已达 evkey 上限，请先删除多余的 Key')):''}
+    if(btn){btn.disabled=keyFull();btn.title=keyFull()?(_keyLimit.max===0?T('account.evkey_no_create','当前用户组不允许创建 EVkey'):T('account.evkey_limit_hit','已达 EVkey 上限，请先删除多余的 EVkey')):''}
     var keys=d.evkeys||[],apps=d.applications||[];
     _keyItems=keys.map(function(k){return {kind:'key',k:k}}).concat(apps.map(function(a){return {kind:'app',a:a}}));
     _pgRender['my-keys']=keysRender;
     keysRender();
-  }).catch(function(){toast(T('account.load_keys_failed','加载 Key 列表失败'),'error')});
+  }).catch(function(){toast(T('account.load_keys_failed','加载 EVkey 列表失败'),'error')});
 }
 function applyKey(btn){
   if(keyFull()){
-    alertModal(_keyLimit.max===0?T('account.evkey_cannot','无法创建 evkey'):T('account.evkey_limit_title','已达 evkey 上限'),keyFullMsg());
+    alertModal(_keyLimit.max===0?T('account.evkey_cannot','无法创建 EVkey'):T('account.evkey_limit_title','已达 EVkey 上限'),keyFullMsg());
     return;
   }
   var d=document.getElementById('key-desc').value.trim();
@@ -326,11 +365,11 @@ function applyKey(btn){
     btnBusy(btn,false);
     if(r.success){
       document.getElementById('key-desc').value='';
-      if(r.evkey)showSecret(T('account.key_generated','新 API Key 已生成'),r.evkey,T('user.evkey_generated_note','请复制并妥善保存，设备侧使用该 Key 鉴权。'));
+      if(r.evkey)showSecret(T('account.key_generated','新 EVkey 已生成'),r.evkey,T('user.evkey_generated_note','请复制并妥善保存，设备侧使用该 EVkey 鉴权。'));
       else toast(r.message||T('account.key_pending_msg','申请已提交，等待管理员审核'),'success');
       loadKeys();
     }else if(r.code===400&&/上限|不允许创建/.test(r.message||'')){
-      alertModal(T('account.evkey_cannot','无法创建 evkey'),r.message);loadKeys();
+      alertModal(T('account.evkey_cannot','无法创建 EVkey'),r.message);loadKeys();
     }else toast(r.message||T('core.op_failed','操作失败'),'error');
   }).catch(function(){btnBusy(btn,false);toast(T('msg.network_error','网络错误'),'error')});
 }
@@ -338,19 +377,19 @@ function keyToggle(id,enabled,btn){
   btnBusy(btn,true);
   R.put('/admin/api/my/evkeys/'+id,{enabled:enabled}).then(function(d){
     btnBusy(btn,false);
-    if(d.success){toast(enabled?T('account.key_enabled','Key 已启用'):T('account.key_disabled','Key 已禁用'),'success');loadKeys()}
+    if(d.success){toast(enabled?T('account.key_enabled','EVkey 已启用'):T('account.key_disabled','EVkey 已禁用'),'success');loadKeys()}
     else toast(d.message||T('core.op_failed','操作失败'),'error');
   }).catch(function(){btnBusy(btn,false);toast(T('msg.network_error','网络错误'),'error')});
 }
 function deleteKey(id){
   uiConfirm({
-    title:T('account.del_key_title','删除 API Key'),
-    message:T('user.del_evkey_confirm','删除后使用该 Key 的设备将立即失效，且不可恢复。'),
+    title:T('account.del_key_title','删除 EVkey'),
+    message:T('user.del_evkey_confirm','删除后使用该 EVkey 的设备将立即失效，且不可恢复。'),
     confirmText:T('btn.delete','删除'),danger:true
   }).then(function(ok){
     if(!ok)return;
     R.del('/admin/api/my/evkeys/'+id).then(function(r){
-      if(r.success){toast(T('account.key_deleted','已删除该 Key'),'success');loadKeys()}
+      if(r.success){toast(T('account.key_deleted','已删除该 EVkey'),'success');loadKeys()}
       else toast(r.message||T('core.op_failed','操作失败'),'error');
     }).catch(function(){toast(T('msg.network_error','网络错误'),'error')});
   });
@@ -512,7 +551,7 @@ function loadMe(){
     var g=d.group||{};
     var qs=[[T('account.rate_label','每分钟请求速率'),(g.rate_limit_per_minute>0?T('user.times','{n}',{n:g.rate_limit_per_minute}):T('user.unlimited','不限'))],
             [T('account.quota_label','请求配额'),quotaText(g)],
-            [T('user.col_max_evkeys','evkey 上限'),evkeyLimitText(g.max_evkeys)],
+            [T('user.col_max_evkeys','EVkey 上限'),evkeyLimitText(g.max_evkeys)],
             [T('account.concurrent_label','最大并发渲染'),(g.max_concurrent_renders>0?g.max_concurrent_renders:T('user.unlimited','不限'))]];
     document.getElementById('quota-grid').innerHTML=qs.map(function(q){
       return '<div class="stat"><div class="k">'+esc(q[0])+'</div><div class="v">'+esc(q[1])+'</div></div>';
@@ -541,6 +580,7 @@ document.addEventListener('click',function(e){
   var el=e.target.closest?e.target.closest('[data-act]'):null;
   if(!el)return;
   switch(el.dataset.act){
+    case 'acct-tab':acctTab(el.dataset.tab);break;
     case 'key-apply':applyKey(el);break;
     case 'key-copy':copyText(el.dataset.key||'');break;
     case 'key-toggle':keyToggle(parseInt(el.dataset.id),el.dataset.en!=='1',el);break;
@@ -570,10 +610,9 @@ setInterval(function(){
 },15000);
 
 /* ================= 我的设备（用户控制台 / 管理面板「我的」分页共用） ================= */
-/* 子视图是**页内 DOM 切换**，不走面板那套 .page / switchTab：用户控制台整页没有分页机制，
-   做成 tab 的话那边点进去什么都不会发生。#acct-dev-view 的父节点在两个页壳里并不相同
-   （面板是 #page-account、控制台是 main，后者还多一张 #ann-card 与站内信卡），
-   所以逐个把原 display 记到 dataset._d 再还原——统一置空会把本该隐藏的卡片也亮出来 */
+/* 子视图是**第三分页内的** DOM 切换：打开时把同分页里的兄弟节点（那张入口卡片）藏起来，
+   关闭时逐个把原 display 记回来——统一置空会把本该隐藏的卡片也亮出来。
+   父节点现在是 #acct-pane-devices，面板与控制台两边一致 */
 var _devItems=[],_devPer=9,_devOpts=null;
 function devOpen(){
   var view=document.getElementById('acct-dev-view');if(!view)return;
@@ -876,9 +915,9 @@ function openDeviceModal(id){
       '<input class="input" id="dv-palette" value="'+esc(d.palette||'bw')+'" readonly></label>'+
       '<label>'+esc(T('account.dev_format','输出格式'))+
       '<input class="input" id="dv-format" value="'+esc(d.format||'array')+'" readonly></label></div>'+
-      '<div class="sub" style="margin-top:6px">'+esc(T('account.dev_color_auto','调色板与输出格式由设备上报的颜色自动确定'))+'</div>'+
+      '<div class="sub" style="margin-top:8px">'+esc(T('account.dev_color_auto','调色板与输出格式由设备上报的颜色自动确定'))+'</div>'+
       '<label class="dev-check"><input type="checkbox" id="dv-enabled"'+(d.enabled?' checked':'')+'>'+esc(T('account.dev_enabled','启用该设备'))+'</label>'+
-      '<div class="sub" style="margin-top:14px">'+meta.map(esc).join('<br>')+'</div></div>'+
+      '<div class="sub" style="margin-top:16px">'+meta.map(esc).join('<br>')+'</div></div>'+
       /* 1.5) 共享协作：属主可增删共享账号；被共享方只显示「由 XX 共享」一行。
          共享关系只在这个详情弹窗里出现，设备卡片上不标（用户要求） */
       '<div class="dev-sec"><label>'+esc(T('account.dev_share_title','共享协作'))+'</label>'+
@@ -886,7 +925,7 @@ function openDeviceModal(id){
         ? '<div class="sub" style="margin:0">'+esc(T('account.dev_shared_by_line','这台设备由「{name}」共享给你协作，可共同编辑设置与渲染项，但不能删除设备。',{name:d.shared_by_name||'-'}))+'</div>'
         : '<div class="sub">'+esc(T('account.dev_share_desc','输入对方账号 ID 或账号名共享这台设备，对方即可共同编辑设置与渲染项。'))+'</div>'+
           '<div id="dv-shares"></div>'+
-          '<div class="apply-row" style="margin-top:10px">'+
+          '<div class="apply-row" style="margin-top:8px">'+
           '<input class="input" id="dv-share" placeholder="'+esc(T('account.dev_share_ph','对方账号 ID 或账号名'))+'" autocomplete="off">'+
           '<button class="btn btn-sm btn-primary" data-dvact="share-add">'+esc(T('account.dev_share_add','共享'))+'</button></div>')+
       '</div>'+
@@ -910,7 +949,7 @@ function openDeviceModal(id){
       '<div class="dev-sec"><label>'+esc(T('account.dev_tasks_title','渲染项'))+'</label>'+
       '<div class="sub">'+esc(T('account.dev_tasks_desc','设备按排序取第一条可用项渲染'))+'</div>'+
       '<div id="dv-tasks"></div>'+
-      '<div style="margin-top:12px"><button class="btn btn-sm" data-dvact="task-add">'+esc(T('account.dev_task_add','添加渲染项'))+'</button></div></div>'+
+      '<div style="margin-top:16px"><button class="btn btn-sm" data-dvact="task-add">'+esc(T('account.dev_task_add','添加渲染项'))+'</button></div></div>'+
       '<div class="modal-actions">'+(d.owner===false?'':'<button class="btn btn-danger" data-dvact="unbind">'+esc(T('account.dev_unbind','解绑并删除'))+'</button>')+
       '<span style="flex:1"></span>'+
       '<button class="btn btn-primary" data-dvact="save">'+esc(T('account.dev_save','保存'))+'</button></div>';

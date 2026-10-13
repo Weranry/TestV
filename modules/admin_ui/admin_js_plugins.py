@@ -34,7 +34,7 @@ function refreshPlugins(){
     h+='</tbody></table>';
     var fs=d.failures||[];
     if(fs.length){
-      h+='<div class="card-desc err-text" style="margin:14px 0 6px">'+T('plugin.failures_intro','以下插件加载失败：')+'</div>'+
+      h+='<div class="card-desc err-text" style="margin:16px 0 8px">'+T('plugin.failures_intro','以下插件加载失败：')+'</div>'+
         '<table><thead><tr><th class="col-state">'+T('nav.plugins','插件')+'</th><th>'+T('stats.col_errors','错误')+'</th></tr></thead><tbody>';
       fs.forEach(function(f){
         h+='<tr><td class="strong">'+esc(f.name)+'</td><td class="dim mono">'+esc(f.error||'')+'</td></tr>';
@@ -100,7 +100,7 @@ function confirmReplacePlugin(f,name){
 /* 已落盘但导入失败：列出具体导入错误 */
 function showAddFailures(name,failures){
   var h='<h3>'+esc(T('plugin.install_failures_title','{name} · 加载失败',{name:name}))+'</h3>';
-  h+='<table style="margin-top:12px"><thead><tr><th>'+T('nav.plugins','插件')+'</th><th>'+T('stats.col_errors','错误')+'</th></tr></thead><tbody>';
+  h+='<table style="margin-top:16px"><thead><tr><th>'+T('nav.plugins','插件')+'</th><th>'+T('stats.col_errors','错误')+'</th></tr></thead><tbody>';
   failures.forEach(function(f){
     h+='<tr><td class="strong">'+esc(f.name||'')+'</td><td class="dim mono">'+esc(f.error||'')+'</td></tr>';
   });
@@ -140,7 +140,7 @@ function showPluginRoutes(pname){
     '<span class="lg-item"><i class="dot dot-off"></i>'+T('user.disabled','禁用')+'</span></div></div>';
   if(!routes.length){h+='<div class="empty">'+T('plugin.no_routes','该插件暂无路由')+'</div>'}
   else{
-    h+='<table style="margin-top:12px"><thead><tr><th>'+T('test.col_path','路径')+'</th><th class="col-dot">'+T('user.legend_status','状态')+'</th><th class="col-act">'+T('core.col_action','操作')+'</th></tr></thead><tbody>';
+    h+='<table style="margin-top:16px"><thead><tr><th>'+T('test.col_path','路径')+'</th><th class="col-dot">'+T('user.legend_status','状态')+'</th><th class="col-act">'+T('core.col_action','操作')+'</th></tr></thead><tbody>';
     routes.forEach(function(r){
       h+='<tr><td class="mono ellip" title="'+esc(r.path)+'">'+esc(r.path)+'</td>';
       h+='<td class="col-dot">'+dotHtml(r.disabled?'dot-off':'dot-on',r.disabled?T('user.disabled','禁用'):T('user.enabled','启用'))+'</td>';

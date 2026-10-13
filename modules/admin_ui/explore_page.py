@@ -22,53 +22,53 @@ EXPLORE_HTML = r'''<!DOCTYPE html>
 {{SHARED_UI_CSS}}
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--sans);background:var(--bg);color:var(--fg);min-height:100vh}
-.wrap{max-width:1140px;margin:0 auto;padding:36px 24px 72px}
+.wrap{max-width:1140px;margin:0 auto;padding:32px 24px 64px}
 /* 顶栏：logo 回首页，右侧给一个登录入口（访客页唯一的跳出点） */
-.hd{display:flex;align-items:center;gap:10px;margin-bottom:26px}
-.hd .brand{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;letter-spacing:-.3px;color:var(--fg);text-decoration:none}
+.hd{display:flex;align-items:center;gap:8px;margin-bottom:24px}
+.hd .brand{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600;letter-spacing:-.3px;color:var(--fg);text-decoration:none}
 .hd .brand:hover{opacity:.75}
 /* 顶栏品牌放大：只动访客页顶栏这一处——共享层的 .logo-mark 是全局 20×20
    （侧栏、概览缩略图都在用），不能改。高度必须一起给：这个 svg 的 viewBox 是竖版，
    只改宽度的话高度仍被 20px 钉住、图形反而更小，宽度也白留 */
 .hd .brand .logo-mark{width:32px;height:32px}
-.hd .brand>span{font-size:22px}
+.hd .brand>span{font-size:24px}
 .hd .sp{flex:1}
-.hd .lnk{font-size:13px;color:var(--fg2);text-decoration:none;padding:7px 14px;border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--line);transition:all var(--motion-fast)}
+.hd .lnk{font-size:12px;color:var(--fg2);text-decoration:none;padding:8px 16px;border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--line);transition:all var(--motion-fast)}
 .hd .lnk:hover{color:var(--fg);background:var(--soft)}
 /* 框架版本号：挂在顶栏品牌旁，说明这一页由哪个框架版本渲染。
    等宽小字 + 淡色胶囊，不抢标题与卡片的层级 */
 .hd .ver{font-family:var(--mono);font-size:11px;color:var(--fg3);padding:2px 8px;border-radius:999px;background:var(--soft);align-self:center}
-h1{font-size:30px;font-weight:600;letter-spacing:-1px}
+h1{font-size:32px;font-weight:600;letter-spacing:-1px}
 /* 分区栏：页头（这一页是什么）与卡片网格（有哪些插件）之间的结构线。
    没有它时，标题、数量、卡片是三层同样口吻的堆叠，层次读不出来 */
-.secbar{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
-  margin-top:28px;padding-bottom:11px;border-bottom:1px solid var(--line)}
+.secbar{display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+  margin-top:24px;padding-bottom:8px;border-bottom:1px solid var(--line)}
 .secbar-t{font-size:14px;font-weight:600;letter-spacing:-.2px;color:var(--fg)}
 .secbar-c{font-size:12px;color:var(--fg3)}
 /* 网格：宽屏一行三个，窄屏逐级降到两列 / 单列。卡片高度由内容（四段固定行数）决定，
    不再用 aspect-ratio 撑正方形——内容之外的地方全成了空白 */
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:16px}
-.empty{font-size:13px;color:var(--fg3);padding:32px 0}
+.empty{font-size:14px;color:var(--fg3);padding:32px 0}
 /* ============ 卡片（单面，点击开弹窗） ============ */
 /* 高度不靠 aspect-ratio 撑：四段各自的行数是硬上限——标题 1 行、作者 1 行、描述 3 行、
    用户组 2 行，加起来高度恒定，同一行的卡片因此天然齐平，内容超了截断 */
-.xcard{display:flex;flex-direction:column;padding:18px;border-radius:var(--r-md);
+.xcard{display:flex;flex-direction:column;padding:16px;border-radius:var(--r-md);
   background:var(--ds-background-100);box-shadow:var(--sh-1);cursor:pointer;outline:none;overflow:hidden;
   transition:box-shadow var(--motion-fast),transform var(--motion-fast)}
 .xcard:hover{box-shadow:var(--sh-2);transform:translateY(-1px)}
 .xcard:focus-visible{box-shadow:var(--ds-focus-ring)}
 /* 名称一行；作者一行——**没有作者也占着这一行的高度**，否则有 / 没作者的卡片会差出一行 */
-.xname{flex-shrink:0;font-size:17px;font-weight:600;letter-spacing:-.4px;line-height:22px;height:22px;
+.xname{flex-shrink:0;font-size:16px;font-weight:600;letter-spacing:-.4px;line-height:24px;height:24px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .xby{flex-shrink:0;margin-top:4px;font-size:12px;line-height:18px;height:18px;color:var(--fg3);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* 描述固定三行：短的留白、长的在第三行收省略号，卡片高度不随描述长短变 */
-.xdesc{flex-shrink:0;margin-top:10px;font-size:13px;line-height:20px;height:60px;color:var(--fg2);
+.xdesc{flex-shrink:0;margin-top:8px;font-size:14px;line-height:20px;height:60px;color:var(--fg2);
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
 /* 可用用户组直接铺标签、不再先写一行「可用用户组」：固定两行高度，超出的组裁掉。
    align-content:flex-end——单排标签沉在第二排（底部）对齐，只有一排放不下、
    溢出成两排时才从第一排开始铺满这两排 */
-.xtags{flex-shrink:0;display:flex;flex-wrap:wrap;align-content:flex-end;gap:6px;margin-top:10px;
+.xtags{flex-shrink:0;display:flex;flex-wrap:wrap;align-content:flex-end;gap:8px;margin-top:8px;
   height:48px;overflow:hidden}
 .xtags .xnone{font-size:12px;color:var(--fg3)}
 .chip{display:inline-block;font-size:11px;line-height:1.7;padding:1px 8px;border-radius:999px;
@@ -83,39 +83,39 @@ h1{font-size:30px;font-weight:600;letter-spacing:-1px}
 .xm-bg{position:absolute;inset:0;background:var(--scrim)}
 .xm-box{position:relative;display:flex;flex-direction:column;width:100%;max-width:640px;max-height:calc(100vh - 48px);
   background:var(--ds-background-100);border-radius:var(--r-lg);box-shadow:var(--sh-2);overflow:hidden}
-.xm-hd{flex-shrink:0;display:flex;align-items:flex-start;gap:10px;padding:18px 20px;border-bottom:1px solid var(--line-soft)}
+.xm-hd{flex-shrink:0;display:flex;align-items:flex-start;gap:8px;padding:16px 24px;border-bottom:1px solid var(--line-soft)}
 .xm-ttl{flex:1;min-width:0}
-.xm-name{display:block;font-size:17px;font-weight:600;letter-spacing:-.3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xm-name{display:block;font-size:16px;font-weight:600;letter-spacing:-.3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .xm-meta{display:block;margin-top:4px;font-size:12px;color:var(--fg3)}
 .xm-x{flex-shrink:0;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:none;padding:0;
   border-radius:var(--r-sm);background:none;color:var(--fg3);font-size:18px;line-height:1;cursor:pointer;transition:all var(--motion-fast)}
 .xm-x:hover{color:var(--fg);background:var(--soft)}
-.xm-bd{flex:1;min-height:0;overflow-y:auto;padding:2px 20px 22px}
+.xm-bd{flex:1;min-height:0;overflow-y:auto;padding:0 24px 24px}
 /* 弹窗两段：路由是主角（深色 + 稍大），插件参数次之 */
 .sec{font-size:12px;font-weight:600;letter-spacing:-.1px;color:var(--fg2);margin:16px 0 8px}
-.rt{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid var(--line-soft)}
+.rt{display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--line-soft)}
 .rt:last-child{border-bottom:none}
-.rt .m{flex-shrink:0;font-family:var(--mono);font-size:10px;line-height:1.8;color:var(--fg3);background:var(--soft);
-  padding:0 5px;border-radius:4px;margin-top:1px}
+.rt .m{flex-shrink:0;font-family:var(--mono);font-size:11px;line-height:1.8;color:var(--fg3);background:var(--soft);
+  padding:0 8px;border-radius:4px;margin-top:1px}
 .rtb{flex:1;min-width:0}
 .rt .p{display:block;font-family:var(--mono);font-size:12px;line-height:1.6;color:var(--fg);word-break:break-all}
 /* 从属层：尺寸属于「这条路由的可选项」，缩进挂在路由下面，用左侧竖线表达从属关系 */
-.rtsub{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;padding-left:10px;
+.rtsub{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;padding-left:8px;
   border-left:2px solid var(--line)}
-.rtsub-k{font-size:10px;color:var(--fg3)}
-.rtsub-v{font-family:var(--mono);font-size:11px;color:var(--fg2);background:var(--soft);padding:1px 6px;border-radius:4px}
+.rtsub-k{font-size:11px;color:var(--fg3)}
+.rtsub-v{font-family:var(--mono);font-size:11px;color:var(--fg2);background:var(--soft);padding:1px 8px;border-radius:4px}
 /* 参数只列名字：默认值是插件自带的、装完就不会变，列出来只会盖过参数名本身 */
-.pmrow{display:flex;flex-wrap:wrap;gap:6px}
-.pmk{font-family:var(--mono);font-size:11px;color:var(--fg2);background:var(--soft);padding:2px 7px;border-radius:4px}
+.pmrow{display:flex;flex-wrap:wrap;gap:8px}
+.pmk{font-family:var(--mono);font-size:11px;color:var(--fg2);background:var(--soft);padding:2px 8px;border-radius:4px}
 .none{font-size:12px;color:var(--fg3);padding:4px 0}
 @media (max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:560px){
-  .wrap{padding:24px 16px 56px}
-  .grid{grid-template-columns:1fr;gap:12px}
-  .xmodal{padding:10px}
-  .xm-box{max-height:calc(100vh - 20px);border-radius:var(--r-md)}
-  .xm-hd{padding:14px 14px}
-  .xm-bd{padding:0 14px 18px}
+  .wrap{padding:24px 16px 48px}
+  .grid{grid-template-columns:1fr;gap:16px}
+  .xmodal{padding:16px}
+  .xm-box{max-height:calc(100vh - 32px);border-radius:var(--r-md)}
+  .xm-hd{padding:16px}
+  .xm-bd{padding:0 16px 16px}
 }
 </style>
 {{THEME_INIT}}

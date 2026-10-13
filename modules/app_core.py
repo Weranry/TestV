@@ -47,7 +47,7 @@ _BODY_LIMIT_SKIP_PATHS = ('/admin/api/backup/restore', '/admin/api/plugins/insta
 
 # 框架版本：/healthz 的返回值、FastAPI app.version 与插件清单的 min_framework_version
 # 判定共用这一份来源，避免三处各写一个字面量。
-FRAMEWORK_VERSION = '26.13.0'
+FRAMEWORK_VERSION = '26.16.0'
 
 # 未完成初始化时插件路由的拒绝文案（与首页提示同一件事，见 setup_gate_middleware）
 _SETUP_MESSAGE = '系统尚未完成初始化：请先在 /login 用初始账号 admin / admin123 登录并立即修改密码'

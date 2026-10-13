@@ -7,17 +7,17 @@ LOGIN_HTML = r'''<!DOCTYPE html>
 <style>
 {{SHARED_UI_CSS}}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--sans);background:var(--bg);display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;color:var(--fg)}
+body{font-family:var(--sans);background:var(--bg);display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;color:var(--fg)}
 .login-card{background:var(--ds-background-100);border-radius:var(--r-md);padding:40px 32px;width:360px;max-width:100%;box-shadow:var(--sh-2)}
-.login-card h1{font-size:22px;font-weight:600;letter-spacing:-.6px;margin-bottom:24px}
+.login-card h1{font-size:24px;font-weight:600;letter-spacing:-.6px;margin-bottom:24px}
 input,button{font-family:inherit;font-size:inherit}
-.input{width:100%;height:40px;padding:0 12px;border:none;border-radius:var(--r-sm);font-size:14px;outline:none;transition:box-shadow var(--motion-fast);margin-bottom:12px;box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);background:var(--ds-background-100);color:var(--fg)}
+.input{width:100%;height:40px;padding:0 16px;border:none;border-radius:var(--r-sm);font-size:14px;outline:none;transition:box-shadow var(--motion-fast);margin-bottom:16px;box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);background:var(--ds-background-100);color:var(--fg)}
 .input:hover{box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-600)}
 .input:focus{box-shadow:inset 0 0 0 1px var(--ds-focus-color),var(--ds-focus-ring)}
 .btn{display:block;width:100%;height:40px;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:500;cursor:pointer;transition:all var(--motion-fast)}
 .btn-primary{background:var(--ds-gray-1000);color:var(--ds-background-100)}
 .btn-primary:hover{background:var(--ds-gray-900)}
-.link{font-size:12px;text-align:center;margin-top:16px;color:var(--fg2)}
+.link{font-size:12px;margin-top:16px;color:var(--fg2);text-align:center}
 .link a{color:var(--fg);text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--fg3)}
 .link a:hover{text-decoration-color:var(--fg)}
 .link .link-sep{margin:0 8px;color:var(--faint)}
@@ -70,12 +70,12 @@ CHPASS_HTML = r'''<!DOCTYPE html>
 <style>
 {{SHARED_UI_CSS}}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--sans);background:var(--bg);display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;color:var(--fg)}
+body{font-family:var(--sans);background:var(--bg);display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;color:var(--fg)}
 .card{background:var(--ds-background-100);border-radius:var(--r-md);padding:40px 32px;width:380px;max-width:100%;box-shadow:var(--sh-2)}
-.card h1{font-size:20px;font-weight:600;letter-spacing:-.4px;margin-bottom:4px}
-.card p{font-size:13px;color:var(--fg2);margin-bottom:20px}
+.card h1{font-size:24px;font-weight:600;letter-spacing:-.4px;margin-bottom:4px}
+.card p{font-size:14px;color:var(--fg2);margin-bottom:24px}
 input{font-family:inherit;font-size:inherit}
-.input{width:100%;height:40px;padding:0 12px;border:none;border-radius:var(--r-sm);font-size:14px;outline:none;margin-bottom:12px;box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);background:var(--ds-background-100);color:var(--fg)}
+.input{width:100%;height:40px;padding:0 16px;border:none;border-radius:var(--r-sm);font-size:14px;outline:none;margin-bottom:16px;box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);background:var(--ds-background-100);color:var(--fg)}
 .input:hover{box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-600)}
 .input:focus{box-shadow:inset 0 0 0 1px var(--ds-focus-color),var(--ds-focus-ring)}
 .btn{display:block;width:100%;height:40px;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:500;cursor:pointer;transition:all var(--motion-fast)}
@@ -125,18 +125,18 @@ REGISTER_HTML = r'''<!DOCTYPE html>
 <style>
 {{SHARED_UI_CSS}}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--sans);background:var(--bg);display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;color:var(--fg)}
+body{font-family:var(--sans);background:var(--bg);display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;color:var(--fg)}
 .card{background:var(--ds-background-100);border-radius:var(--r-md);padding:40px 32px;width:400px;max-width:100%;box-shadow:var(--sh-2)}
-.card h1{font-size:22px;font-weight:600;letter-spacing:-.6px;margin-bottom:4px}
-.card p{font-size:13px;color:var(--fg2);margin-bottom:20px}
+.card h1{font-size:24px;font-weight:600;letter-spacing:-.6px;margin-bottom:4px}
+.card p{font-size:14px;color:var(--fg2);margin-bottom:24px}
 input,button{font-family:inherit;font-size:inherit}
-.input{width:100%;height:40px;padding:0 12px;border:none;border-radius:var(--r-sm);font-size:14px;outline:none;margin-bottom:12px;box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);background:var(--ds-background-100);color:var(--fg)}
+.input{width:100%;height:40px;padding:0 16px;border:none;border-radius:var(--r-sm);font-size:14px;outline:none;margin-bottom:16px;box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);background:var(--ds-background-100);color:var(--fg)}
 .input:hover{box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-600)}
 .input:focus{box-shadow:inset 0 0 0 1px var(--ds-focus-color),var(--ds-focus-ring)}
 .btn{display:block;width:100%;height:40px;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:500;cursor:pointer;transition:all var(--motion-fast)}
 .btn-primary{background:var(--ds-gray-1000);color:var(--ds-background-100)}
 .btn-primary:hover{background:var(--ds-gray-900)}
-.footer{text-align:center;margin-top:16px;font-size:12px;color:var(--fg2)}
+.footer{margin-top:16px;font-size:12px;color:var(--fg2)}
 .footer a{color:var(--fg);text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--fg3)}
 .footer a:hover{text-decoration-color:var(--fg)}
 </style>
@@ -194,18 +194,18 @@ RESET_HTML = r'''<!DOCTYPE html>
 <style>
 {{SHARED_UI_CSS}}
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:var(--sans);background:var(--bg);display:flex;align-items:center;justify-content:center;min-height:100vh;padding:20px;color:var(--fg)}
+body{font-family:var(--sans);background:var(--bg);display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;color:var(--fg)}
 .card{background:var(--ds-background-100);border-radius:var(--r-md);padding:40px 32px;width:400px;max-width:100%;box-shadow:var(--sh-2)}
-.card h1{font-size:22px;font-weight:600;letter-spacing:-.6px;margin-bottom:4px}
-.card p{font-size:13px;color:var(--fg2);margin-bottom:20px}
+.card h1{font-size:24px;font-weight:600;letter-spacing:-.6px;margin-bottom:4px}
+.card p{font-size:14px;color:var(--fg2);margin-bottom:24px}
 input,button{font-family:inherit;font-size:inherit}
-.input{width:100%;height:40px;padding:0 12px;border:none;border-radius:var(--r-sm);font-size:14px;outline:none;margin-bottom:12px;box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);background:var(--ds-background-100);color:var(--fg)}
+.input{width:100%;height:40px;padding:0 16px;border:none;border-radius:var(--r-sm);font-size:14px;outline:none;margin-bottom:16px;box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);background:var(--ds-background-100);color:var(--fg)}
 .input:hover{box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-600)}
 .input:focus{box-shadow:inset 0 0 0 1px var(--ds-focus-color),var(--ds-focus-ring)}
 .btn{display:block;width:100%;height:40px;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:500;cursor:pointer;transition:all var(--motion-fast)}
 .btn-primary{background:var(--ds-gray-1000);color:var(--ds-background-100)}
 .btn-primary:hover{background:var(--ds-gray-900)}
-.footer{text-align:center;margin-top:16px;font-size:12px;color:var(--fg2)}
+.footer{margin-top:16px;font-size:12px;color:var(--fg2)}
 .footer a{color:var(--fg);text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--fg3)}
 .footer a:hover{text-decoration-color:var(--fg)}
 </style>
@@ -265,61 +265,61 @@ body{font-family:var(--sans);background:var(--bg);color:var(--fg);font-size:14px
 /* 浏览器默认把 <b>/<strong> 设成 700，面板页统一用 600；这里不跟着重置，同一段文案的字重会跳变 */
 b,strong{font-weight:600}
 nav{position:sticky;top:0;z-index:100;background:var(--topbar);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);height:56px;display:flex;align-items:center;padding:0 24px}
-.logo{display:inline-flex;align-items:center;gap:7px;font-weight:600;font-size:16px;letter-spacing:-.4px}
+.logo{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:16px;letter-spacing:-.4px}
 /* 用户名与图标按钮组贴到顶栏右缘；主题切换按钮排在用户名左边，所以自动边距落在用户名上 */
-nav .user{margin-left:auto;font-size:13px;color:var(--fg2);display:flex;align-items:center;gap:10px}
+nav .user{margin-left:auto;font-size:14px;color:var(--fg2);display:flex;align-items:center;gap:8px}
 /* 退出登录 / 主题切换都是图标按钮（与后台面板栏底那份同一个画法）：文字收进 title / aria-label，
    鼠标悬停给提示，不再在顶栏里占一段汉字 */
 nav .user .icon-btn{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:var(--r-sm);background:none;color:var(--fg2);cursor:pointer;padding:0}
 nav .user .icon-btn:hover{color:var(--fg);background:var(--soft)}
 nav .user .icon-btn svg{width:18px;height:18px}
 /* 与后台面板的 main 用同一组内边距与同一个最大宽度：同一块屏幕换一边看，卡片宽窄与留白才一致 */
-main{padding:26px 24px 60px;max-width:1400px;margin:0 auto}
-.card{background:var(--ds-background-100);border-radius:var(--r-md);box-shadow:var(--card-shadow);margin-bottom:18px;overflow:hidden}
-.card-header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+main{padding:24px 24px 64px;max-width:1400px;margin:0 auto}
+.card{background:var(--ds-background-100);border-radius:var(--r-md);box-shadow:var(--card-shadow);margin-bottom:16px;overflow:hidden}
+.card-header{padding:16px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
 /* .card-title / .card-desc 与后台面板同一套写法：标题与说明用 flex gap 排版，
    说明行不再靠自身 margin，否则带圆点图例的那几行间距和面板里差 3px */
-.card-title{display:flex;flex-direction:column;gap:3px;min-width:0}
+.card-title{display:flex;flex-direction:column;gap:4px;min-width:0}
 .card-title h2{font-size:16px;font-weight:600;letter-spacing:-.4px}
 .card-desc{font-size:12px;color:var(--fg2);font-weight:400}
 /* 卡片头右上角的计数小字（「已使用 N 个 / M」这类）：中文的 min-content 只有一个字宽，
    被挤压时会逐字竖排、看上去像被旁边的元素盖住。禁止收缩，保持整行 */
 .card-header small,.card-header .acts .dim{white-space:nowrap;flex-shrink:0}
-.card-header .acts>.dim+.btn{margin-left:6px}
+.card-header .acts>.dim+.btn{margin-left:8px}
 /* 表格放卡片里：列宽不足时整卡横向滚动，而不是把最后一列挤成竖排 */
-.card-body{padding:20px;overflow-x:auto}
+.card-body{padding:24px;overflow-x:auto}
 .card.cfg .card-header{background:var(--soft);border-bottom-color:var(--line)}
-.panel{background:var(--soft);border-radius:var(--r-sm);padding:12px 14px;font-size:13px;box-shadow:var(--ring)}
+.panel{background:var(--soft);border-radius:var(--r-sm);padding:16px;font-size:12px;box-shadow:var(--ring)}
 /* .acts / .sep / 表格内边距与后台面板保持同一套数值，两边按钮间距与内容左边缘才对得上 */
-.acts{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-.acts .sep{width:1px;height:18px;background:var(--line);margin:0 2px;flex-shrink:0}
+.acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.acts .sep{width:1px;height:18px;background:var(--line);margin:0 4px;flex-shrink:0}
 /* 表格里的操作按钮强制单行：宁可撑宽卡片横向滚动，也不让按钮折到下一行 */
 td .acts{flex-wrap:nowrap}
 input,button{font-family:inherit;font-size:inherit}
-.input{width:100%;height:32px;padding:0 10px;border:none;border-radius:var(--r-sm);font-size:14px;outline:none;background:var(--ds-background-100);box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);color:var(--fg);transition:box-shadow var(--motion-fast)}
+.input{width:100%;height:32px;padding:0 16px;border:none;border-radius:var(--r-sm);font-size:14px;outline:none;background:var(--ds-background-100);box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);color:var(--fg);transition:box-shadow var(--motion-fast)}
 .input:hover{box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-600)}
 .input:focus{box-shadow:inset 0 0 0 1px var(--ds-focus-color),var(--ds-focus-ring)}
 .input::placeholder{color:var(--faint)}
-.btn{display:inline-flex;align-items:center;justify-content:center;height:32px;padding:0 12px;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:500;cursor:pointer;background:var(--ds-background-100);color:var(--fg);box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);transition:all var(--motion-fast);white-space:nowrap;flex-shrink:0}
+.btn{display:inline-flex;align-items:center;justify-content:center;height:32px;padding:0 16px;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:500;cursor:pointer;background:var(--ds-background-100);color:var(--fg);box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);transition:all var(--motion-fast);white-space:nowrap;flex-shrink:0}
 .btn:hover{background:var(--ds-gray-100)}
 .btn-primary{background:var(--ds-gray-1000);color:var(--ds-background-100);box-shadow:inset 0 0 0 1px var(--ds-gray-1000)}
 .btn-primary:hover{background:var(--ds-gray-900)}
 .btn-danger{color:var(--red)}
 table{width:100%;border-collapse:collapse;font-size:14px}
 th{text-align:left;padding:8px 16px;font-size:12px;font-weight:500;color:var(--fg2);border-bottom:1px solid var(--line);white-space:nowrap}
-td{padding:10px 16px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
-/* 首末列补足到 20px：表格内容与 .card-body 的左内边距对齐，否则左边比卡片标题缩进少一截 */
-table th:first-child,table td:first-child{padding-left:20px}
-table th:last-child,table td:last-child{padding-right:20px}
+td{padding:8px 16px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+/* 首末列补足到 24px：表格内容与 .card-body 的左内边距对齐，否则左边比卡片标题缩进少一截 */
+table th:first-child,table td:first-child{padding-left:24px}
+table th:last-child,table td:last-child{padding-right:24px}
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover{background:var(--soft)}
 /* 操作列按内容收窄：按钮个数与文字宽度都由内容决定，写死宽度必然溢出 */
 .col-act{width:1%;white-space:nowrap}
-/* 只放圆点的列（额度记录「操作」、API Key「状态」）：整列居中，表头同样带上这个类 */
+/* 只放圆点的列（额度记录「操作」、EVkey「状态」）：整列居中，表头同样带上这个类 */
 .col-dot{width:1%;white-space:nowrap;text-align:center}
 .mono{font-family:var(--mono);font-size:12px;word-break:break-all}
 .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
-.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:400;line-height:16px;white-space:nowrap;flex-shrink:0;color:var(--fg2)}
+.badge{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:400;line-height:16px;white-space:nowrap;flex-shrink:0;color:var(--fg2)}
 .badge::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--fg3);flex-shrink:0}
 .badge-on::before{background:var(--blue)}
 .badge-off::before{background:var(--fg3)}
@@ -336,14 +336,14 @@ tbody tr:hover{background:var(--soft)}
 /* 状态圆点图例：表格状态列只有圆点、不带文字，含义统一挪到卡片头说明。
    不同类别的图例各占一行，所以外层用纵向 flex */
 .dot-legend{display:flex;flex-direction:column;gap:4px;margin-top:8px;font-size:12px;color:var(--fg2)}
-.dot-legend .lg-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px}
+.dot-legend .lg-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 16px}
 .dot-legend .lg-row>em{font-style:normal;color:var(--fg3)}
-.dot-legend .lg-item{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.dot-legend .lg-item{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .dot-legend .dot{cursor:default}
 .flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-.empty{text-align:center;padding:36px 0;color:var(--fg3);font-size:14px}
+.empty{text-align:center;padding:40px 0;color:var(--fg3);font-size:14px}
 .strong{font-weight:600}
-.btn-sm{height:26px;padding:0 9px;font-size:12px}
+.btn-sm{height:26px;padding:0 8px;font-size:12px}
 .dim{color:var(--fg2)}
 .small{font-size:12px}
 /* 页头（大标题 + 说明 + ACCOUNT 英文小标）已整块移除：这一页只有一张「我的」面板，
@@ -353,23 +353,23 @@ tbody tr:hover{background:var(--soft)}
    改动，同名组件在两端就会走样 */
 /* 站内信：浅底条目，正文保留换行。管理端概览页与用户控制台渲染的是同一种条目，
    底色/圆角/正文字号必须同源，否则同一条消息在两个界面里长得不一样 */
-.ann-list{display:flex;flex-direction:column;gap:10px}
-.ann-item{padding:12px 14px;border-radius:var(--r-sm);background:var(--soft);box-shadow:var(--ring)}
+.ann-list{display:flex;flex-direction:column;gap:16px}
+.ann-item{padding:16px;border-radius:var(--r-sm);background:var(--soft);box-shadow:var(--ring)}
 .ann-item .h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .ann-item .h b{font-size:14px;font-weight:600}
 .ann-item .h .sp{flex:1}
-.ann-item .body{font-size:14px;color:var(--fg2);margin-top:6px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.ann-item .body{font-size:14px;color:var(--fg2);margin-top:8px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
 .ann-item .meta{font-size:12px;color:var(--fg3);white-space:nowrap}
 /* meta 的两种落位：概览页把它放在正文下方独立一行，控制台把它塞进标题行右侧。
    用子选择器区分，避免同一个 .meta 在两种结构里互相带上对方的边距 */
-.ann-item>.meta{margin-top:8px;display:flex;gap:10px;flex-wrap:wrap}
+.ann-item>.meta{margin-top:8px;display:flex;gap:16px;flex-wrap:wrap}
 .ann-item .h .meta{margin-left:auto}
 @media (max-width:640px){
-  main{padding:20px 14px 40px}
-  nav{padding:0 14px}
-  .card-header{padding:12px 14px}
-  .card-body{padding:14px}
-  th,td{padding-left:12px;padding-right:12px}
+  main{padding:16px 16px 40px}
+  nav{padding:0 16px}
+  .card-header{padding:16px}
+  .card-body{padding:16px}
+  th,td{padding-left:8px;padding-right:8px}
 }
 </style>
 {{THEME_INIT}}
@@ -388,7 +388,7 @@ tbody tr:hover{background:var(--soft)}
   </div>
   <div class="card-body">
     <div class="ann-list" id="ann-list"></div>
-    <div class="flex" id="ann-bar" style="justify-content:flex-end;margin-top:12px;display:none"></div>
+    <div class="flex" id="ann-bar" style="justify-content:flex-end;margin-top:16px;display:none"></div>
   </div>
 </div>
 

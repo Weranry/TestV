@@ -78,7 +78,7 @@ function grpSearch(){
 function renderGroups(){
   var list=_groupList.filter(function(g){return matchQuery(_grpQuery,[g.name,g.id])});
   var pg=pgSlice(list,'groups',_PER_PAGE);
-  var h='<table><thead><tr><th class="num">ID</th><th>'+T('user.col_name','名称')+'</th><th class="col-dot">'+T('user.legend_mark','标记')+'</th><th class="num">'+T('user.col_max_evkeys','evkey 上限')+'</th><th class="num">'+T('user.col_max_concurrent','最大并发')+'</th><th class="num">'+T('user.col_rate','每分钟速率')+'</th><th class="num">'+T('user.col_quota','请求配额')+'</th><th class="col-act">'+T('core.col_action','操作')+'</th></tr></thead><tbody>';
+  var h='<table><thead><tr><th class="num">ID</th><th>'+T('user.col_name','名称')+'</th><th class="col-dot">'+T('user.legend_mark','标记')+'</th><th class="num">'+T('user.col_max_evkeys','EVkey 上限')+'</th><th class="num">'+T('user.col_max_concurrent','最大并发')+'</th><th class="num">'+T('user.col_rate','每分钟速率')+'</th><th class="num">'+T('user.col_quota','请求配额')+'</th><th class="col-act">'+T('core.col_action','操作')+'</th></tr></thead><tbody>';
   pg.rows.forEach(function(g){
     var isDefault=g.id===_registerDefaultId,isAdmin=g.category==='admin';
     // 内置管理组拥有全部权限，整组锁定：编辑与权限配置都禁用（后端同样会拒）
@@ -186,11 +186,11 @@ function showGroupModal(id){
       '<div class="ck-list">'+
         '<label><input type="checkbox" id="gann"'+(g.builtin||_intVal(g.show_announcement,1)?' checked':'')+
         (g.builtin?' disabled':'')+'>'+T('user.show_announce','显示概览页的站内信卡片')+'</label></div></div>'+
-    '<label>'+T('user.max_evkeys_label','evkey 上限（-1 = 不限，0 = 禁止创建，N = 最多 N 个）')+'</label><input class="input" type="number" id="gmax" data-orig="'+_intVal(g.max_evkeys,3)+'" value="'+_intVal(g.max_evkeys,3)+'" min="-1"'+(isAdmin?' disabled':'')+'>'+
+    '<label>'+T('user.max_evkeys_label','EVkey 上限（-1 = 不限，0 = 禁止创建，N = 最多 N 个）')+'</label><input class="input" type="number" id="gmax" data-orig="'+_intVal(g.max_evkeys,3)+'" value="'+_intVal(g.max_evkeys,3)+'" min="-1"'+(isAdmin?' disabled':'')+'>'+
     '<label>'+T('user.max_concurrent_label','最大并发渲染（0 = 不限，按账号独立计数，优先级高于全局配置）')+'</label><input class="input" type="number" id="gconc" data-orig="'+(g.max_concurrent_renders||0)+'" value="'+(g.max_concurrent_renders||0)+'" min="0"'+(isAdmin?' disabled':'')+'>'+
-    '<div class="dim small" id="glim-note" style="display:'+(isAdmin?'':'none')+';margin-top:6px">'+T('user.admin_limit_note','管理组不受 evkey 数量与并发数量限制，这两项始终按「不限」执行。')+'</div>'+
+    '<div class="dim small" id="glim-note" style="display:'+(isAdmin?'':'none')+';margin-top:8px">'+T('user.admin_limit_note','管理组不受 EVkey 数量与并发数量限制，这两项始终按「不限」执行。')+'</div>'+
     '<label>'+T('user.rate_label','每分钟请求速率（0 = 不限，按账号独立计数）')+'</label><input class="input" type="number" id="gmr" value="'+(g.rate_limit_per_minute||0)+'" min="0">'+
-    '<label>'+T('user.quota_label','请求配额上限（0 = 不限，按账号独立计数，同账号下所有 evkey 共用）')+'</label><input class="input" type="number" id="gquota" value="'+_intVal(g.quota_limit,0)+'" min="0">'+
+    '<label>'+T('user.quota_label','请求配额上限（0 = 不限，按账号独立计数，同账号下所有 EVkey 共用）')+'</label><input class="input" type="number" id="gquota" value="'+_intVal(g.quota_limit,0)+'" min="0">'+
     '<label>'+T('user.quota_period_label','配额模式')+'</label><select class="input" id="gperiod">'+
       '<optgroup label="'+T('user.period_group','按时间周期（到期自动重置）')+'">'+
         _QUOTA_UNITS.map(function(p){return '<option value="'+p[0]+'"'+(period===p[0]?' selected':'')+'>'+T(p[1],p[2])+'</option>'}).join('')+
@@ -243,7 +243,7 @@ function delGroup(id,name){
   var h='<h3>'+T('user.del_group_title','删除用户组')+'</h3>';
   h+='<p class="dim small modal-sub">'+T('user.del_group_confirm','「{name}」的权限配置与参数限制会一并删除，且不可恢复。',{name:label})+'</p>';
   if(cnt>0){
-    h+='<div class="panel" style="margin-bottom:12px">'+T('user.del_group_has_accounts','该用户组下还有 <b>{n}</b> 个账号（含名下全部 evkey）。',{n:cnt})+'</div>';
+    h+='<div class="panel" style="margin-bottom:16px">'+T('user.del_group_has_accounts','该用户组下还有 <b>{n}</b> 个账号（含名下全部 EVkey）。',{n:cnt})+'</div>';
     h+='<label>'+T('user.acct_handling','账号处理方式')+'</label>';
     h+='<div class="ck-list">'+
       '<label><input type="radio" name="dg-mode" value="transfer" checked>'+T('user.transfer_to','转移到其他用户组')+'</label>'+
@@ -251,7 +251,7 @@ function delGroup(id,name){
     var others=_groupList.filter(function(x){return x.id!==id&&x.category!=='admin'});
     h+='<label>'+T('user.target_group','目标用户组')+'</label><select class="input" id="dg-target" style="width:100%">'+
       others.map(function(x){return '<option value="'+x.id+'">'+esc(x.name)+'</option>'}).join('')+'</select>';
-    if(!others.length)h+='<div class="small err-text" style="margin-top:6px">'+T('user.no_other_group','没有其它用户组可接收，只能连同账号一起删除')+'</div>';
+    if(!others.length)h+='<div class="small err-text" style="margin-top:8px">'+T('user.no_other_group','没有其它用户组可接收，只能连同账号一起删除')+'</div>';
   }
   h+='<label>'+T('user.type_to_confirm','输入 {name} 以确认',{name:'<span class="mono">'+label+'</span>'})+'</label><input class="input" id="dg-text" autocomplete="off" style="width:100%">';
   h+='<div class="modal-actions"><button class="btn" data-act="modal-close">'+T('btn.cancel','取消')+'</button>'+
@@ -485,7 +485,7 @@ function delCode(cid,code){
 
 var _permCtx=null,_permParams={};
 function permParamsHtml(id){
-  var h='<div class="flex" style="margin-bottom:10px">';
+  var h='<div class="flex" style="margin-bottom:8px">';
   var COMMON_PARAMS=[
     {key:'format_bmp',label:'BMP'},{key:'format_png',label:'PNG'},{key:'format_jpg',label:'JPG'},
     {key:'format_webp',label:'WebP'},{key:'format_tiff',label:'TIFF'},{key:'format_gif',label:'GIF'},
@@ -500,14 +500,14 @@ function permParamsHtml(id){
   });
   h+='</div>';
   var paramKeys=Object.keys(_permParams).filter(function(k){return _permParams[k]===false});
-  if(paramKeys.length===0)h+='<div class="dim small" style="margin-bottom:6px">'+T('user.no_param_limit','当前无生效限制，点击上方标签即可禁止对应参数')+'</div>';
+  if(paramKeys.length===0)h+='<div class="dim small" style="margin-bottom:8px">'+T('user.no_param_limit','当前无生效限制，点击上方标签即可禁止对应参数')+'</div>';
   else{
-    h+='<div class="dim small" style="margin-bottom:6px">'+T('user.forbidden_params','当前禁止的参数')+'</div>';
+    h+='<div class="dim small" style="margin-bottom:8px">'+T('user.forbidden_params','当前禁止的参数')+'</div>';
     paramKeys.forEach(function(pk){
-      h+='<div class="flex" style="margin-bottom:4px"><span class="strong" style="min-width:120px;font-size:13px">'+esc(pk)+'</span><button class="btn btn-sm btn-danger" data-act="param-del" data-gid="'+id+'" data-key="'+esc(pk)+'">'+T('user.remove_limit','移除限制')+'</button></div>';
+      h+='<div class="flex" style="margin-bottom:4px"><span class="strong" style="min-width:120px;font-size:14px">'+esc(pk)+'</span><button class="btn btn-sm btn-danger" data-act="param-del" data-gid="'+id+'" data-key="'+esc(pk)+'">'+T('user.remove_limit','移除限制')+'</button></div>';
     });
   }
-  h+='<div class="flex" style="margin-top:10px;border-top:1px solid var(--line);padding-top:12px"><input class="input" id="new-gparam-'+id+'" placeholder="'+T('user.custom_param_ph','自定义参数名')+'" style="width:180px"><button class="btn btn-sm btn-primary" data-act="param-add" data-gid="'+id+'">'+T('user.add_forbid','添加禁止')+'</button></div>';
+  h+='<div class="flex" style="margin-top:8px;border-top:1px solid var(--line);padding-top:16px"><input class="input" id="new-gparam-'+id+'" placeholder="'+T('user.custom_param_ph','自定义参数名')+'" style="width:180px"><button class="btn btn-sm btn-primary" data-act="param-add" data-gid="'+id+'">'+T('user.add_forbid','添加禁止')+'</button></div>';
   return h;
 }
 function renderPermParams(id){
@@ -525,10 +525,10 @@ function showGroupPerms(id,name){
         h+='<div class="sec-title" style="margin-top:8px">'+T('user.perm_plugins_routes','插件与路由')+'</div>';
         pl.forEach(function(x,pi){
           var on=p.plugins[x.name]!==false;
-          h+='<div class="flex" style="margin-bottom:8px"><span class="sw'+(on?' on':'')+'" data-act="perm-toggle" data-gid="'+id+'" data-type="plugin" data-name="'+esc(x.name)+'"><span class="sw-track"></span></span><span style="flex:1;font-size:13px">'+esc(x.name)+'</span><span class="small" style="cursor:pointer;color:var(--fg2)" data-act="perm-fold" data-id="'+id+'" data-idx="'+pi+'">'+T('core.routes_collapse','路由 ▾')+'</span></div>';
+          h+='<div class="flex" style="margin-bottom:8px"><span class="sw'+(on?' on':'')+'" data-act="perm-toggle" data-gid="'+id+'" data-type="plugin" data-name="'+esc(x.name)+'"><span class="sw-track"></span></span><span style="flex:1;font-size:14px">'+esc(x.name)+'</span><span class="small" style="cursor:pointer;color:var(--fg2)" data-act="perm-fold" data-id="'+id+'" data-idx="'+pi+'">'+T('core.routes_collapse','路由 ▾')+'</span></div>';
           var proutes=routes[x.name]||[];
           /* id 用插件在列表中的索引而非插件名：名字可能含空格等字符，直接拼进 id 会产生非法/重复 id */
-          h+='<div id="grp-routes-'+id+'-'+pi+'" style="display:none;margin:2px 0 10px 42px;font-size:12px">';
+          h+='<div id="grp-routes-'+id+'-'+pi+'" style="display:none;margin:2px 0 8px 40px;font-size:12px">';
           proutes.forEach(function(rr){
             var ron=p.routes['/'+rr.path]!==false;
             if(ron===undefined)ron=p.routes[rr.path]!==false;
@@ -538,7 +538,7 @@ function showGroupPerms(id,name){
           if(proutes.length===0)h+='<span class="dim">'+T('plugin.no_routes','该插件暂无路由')+'</span>';
           h+='</div>';
         });
-        h+='<div class="sec-title" style="border-top:1px solid var(--line);padding-top:14px">'+T('user.param_limit_title','参数限制')+'</div>';
+        h+='<div class="sec-title" style="border-top:1px solid var(--line);padding-top:16px">'+T('user.param_limit_title','参数限制')+'</div>';
         h+='<div id="grp-params-'+id+'">'+permParamsHtml(id)+'</div>';
         openModal(h,'perm-modal');
       });
@@ -652,7 +652,7 @@ function renderAccounts(){
   var pg=pgSlice(list,'accounts',_PER_PAGE);
   // 批量操作条由 #acct-bar 容器负责渲染（renderAcctBar 就地更新它），表体里不再重复一份
   var h='<table><thead><tr><th style="width:36px"><input type="checkbox" data-act="acct-check-all" title="'+T('user.select_page_tip','选择本页')+'"></th>'+
-    '<th class="num">UID</th><th>'+T('user.col_name','名称')+'</th><th>'+T('user.groups','用户组')+'</th><th class="num">'+T('user.col_evkey_count','evkey 数')+'</th><th>'+T('user.col_expiry','有效期')+'</th><th class="col-dot">'+T('user.legend_status','状态')+'</th><th class="col-act">'+T('core.col_action','操作')+'</th></tr></thead><tbody>';
+    '<th class="num">UID</th><th>'+T('user.col_name','名称')+'</th><th>'+T('user.groups','用户组')+'</th><th class="num">'+T('user.col_evkey_count','EVkey 数')+'</th><th>'+T('user.col_expiry','有效期')+'</th><th class="col-dot">'+T('user.legend_status','状态')+'</th><th class="col-act">'+T('core.col_action','操作')+'</th></tr></thead><tbody>';
   pg.rows.forEach(function(a){
     h+='<tr><td><input type="checkbox" data-act="acct-check" data-id="'+a.id+'"'+
       (_acctLocked(a)?' disabled title="'+T('user.admin_acct_no_batch','管理组账号不参与批量操作')+'"':'')+
@@ -661,7 +661,7 @@ function renderAccounts(){
     h+='<td class="dim num">'+_intVal(a.uid,0)+'</td><td class="strong">'+esc(a.name)+'</td><td class="dim">'+esc(a.group_name||'')+'</td><td class="num">'+num(a.evkey_count||0)+'</td>';
     h+='<td class="dim">'+acctExpiryHtml(a)+'</td>';
     h+='<td class="col-dot">'+dotHtml(a.enabled?'dot-on':'dot-off',a.enabled?T('user.enabled','启用'):T('user.disabled','禁用'))+'</td>';
-    // API Keys / 额度 / 用量三块合成「详情」一个入口，弹窗内用子标签切换
+    // EVkeys / 额度 / 用量三块合成「详情」一个入口，弹窗内用子标签切换
     h+='<td><div class="acts"><button class="btn btn-sm" data-act="acct-detail" data-id="'+a.id+'" data-name="'+esc(a.name)+'">'+T('user.detail_btn','详情')+'</button>'+
       '<button class="btn btn-sm" data-act="acct-membership" data-id="'+a.id+'" data-name="'+esc(a.name)+'">'+T('user.membership_btn','权限记录')+'</button>'+
       '<button class="btn btn-sm" data-act="acct-edit" data-id="'+a.id+'"'+
@@ -727,7 +727,7 @@ function showAcctTransfer(){
     if(!opts){toast(T('user.no_transfer_group','没有可转移到的用户组'),'error');return}
     var ov=openModal(
       '<h3>'+T('user.batch_transfer_title','批量转移用户组')+'</h3>'+
-      '<p class="dim small modal-sub">'+T('user.batch_transfer_note','将 {n} 个账号转移到目标用户组，其 evkey 与额度用量保持不变。',{n:ids.length})+'</p>'+
+      '<p class="dim small modal-sub">'+T('user.batch_transfer_note','将 {n} 个账号转移到目标用户组，其 EVkey 与额度用量保持不变。',{n:ids.length})+'</p>'+
       '<label>'+T('user.target_group','目标用户组')+'</label><select class="input" id="ba-group">'+opts+'</select>'+
       '<label>'+T('user.type_to_confirm','输入 {name} 以确认',{name:'<span class="mono">TRANSFER</span>'})+'</label><input class="input" id="ba-text" autocomplete="off">'+
       '<div class="modal-actions"><button class="btn" data-act="modal-close">'+T('btn.cancel','取消')+'</button>'+
@@ -749,7 +749,7 @@ function batchDeleteAccounts(){
   if(!ids.length){toast(T('user.need_pick_account','请先勾选账号'),'error');return}
   uiConfirm({
     title:T('user.batch_del_title','批量删除账号'),
-    message:T('user.batch_del_confirm','将删除 {n} 个账号及其名下全部 evkey，使用这些 Key 的设备会立即失效，且不可恢复。',{n:ids.length}),
+    message:T('user.batch_del_confirm','将删除 {n} 个账号及其名下全部 EVkey，使用这些 EVkey 的设备会立即失效，且不可恢复。',{n:ids.length}),
     confirmText:T('user.delete_forever','永久删除'),danger:true
   }).then(function(ok){if(ok)batchAccounts('delete')});
 }
@@ -793,7 +793,7 @@ function saveAccount(id,btn){
 function delAccount(id,name){
   uiConfirm({
     title:T('user.del_account_title','删除账号'),
-    message:T('user.del_account_confirm','将同时删除「{name}」名下的全部 evkey，使用这些 Key 的设备会立即失效。',{name:(name||id)}),
+    message:T('user.del_account_confirm','将同时删除「{name}」名下的全部 EVkey，使用这些 EVkey 的设备会立即失效。',{name:(name||id)}),
     confirmText:T('user.delete_forever','永久删除'),danger:true,requireText:name||String(id)
   }).then(function(ok){
     if(!ok)return;
@@ -803,13 +803,13 @@ function delAccount(id,name){
     });
   });
 }
-/* ================= 账号详情（API Keys / 额度 / 用量） ================= */
+/* ================= 账号详情（EVkeys / 额度 / 用量） ================= */
 /* 三块内容原来各占一个并排按钮，现在合成一个「详情」入口，弹窗内用子标签切换；
    子标签各自懒加载，切到哪块才拉哪块的数据，避免打开弹窗就打三个接口 */
 var _currentAccountId=0,_currentAccountName='',_acctDetailTab='evkeys';
 /* 顶层常量不能调 T()：子标签文案在函数里现取 */
 function _acctDetailTabs(){
-  return [['evkeys',T('user.tab_evkeys','API Keys')],['quota',T('user.tab_quota','额度')],['usage',T('user.tab_usage','用量')],['devices',T('user.tab_devices','设备')]];
+  return [['evkeys',T('user.tab_evkeys','EVkey')],['quota',T('user.tab_quota','额度')],['usage',T('user.tab_usage','用量')],['devices',T('user.tab_devices','设备')]];
 }
 // 邮箱只从列表数据里取：它不占表格列，只在详情弹窗里露一行（用户要求）
 function _acctEmail(id){
@@ -822,7 +822,7 @@ function showAccountDetail(id,name){
   if(!_acctDetailTab)_acctDetailTab='evkeys';
   var h='<h3>'+esc(_currentAccountName||('#'+id))+'</h3>'+
     '<p class="dim small modal-sub">'+T('user.email_line','邮箱：{value}',{value:esc(_acctEmail(id)||T('user.not_set','未设置'))})+'</p>'+
-    '<div class="subtabs" style="margin:10px 0 12px">'+
+    '<div class="subtabs" style="margin:8px 0 16px">'+
       _acctDetailTabs().map(function(t){
         return '<span class="stab'+(_acctDetailTab===t[0]?' on':'')+'" data-act="acct-detail-tab" data-tab="'+t[0]+'">'+t[1]+'</span>';
       }).join('')+'</div>'+
@@ -864,7 +864,7 @@ function acctEvkeysRender(){
   var h='<p class="dim small modal-sub">'+T('user.evkey_used_note','已使用 {n} 个{note}',{n:evkeys.length,note:note})+'</p>';
   if(evkeys.length){
     var pg=pgSlice(evkeys,'acct-evkeys',5);
-    h+='<table><thead><tr><th>evkey</th><th>'+T('plugin.col_desc','描述')+'</th><th class="col-state">'+T('user.legend_status','状态')+'</th><th class="col-act">'+T('core.col_action','操作')+'</th></tr></thead><tbody>';
+    h+='<table><thead><tr><th>EVkey</th><th>'+T('plugin.col_desc','描述')+'</th><th class="col-state">'+T('user.legend_status','状态')+'</th><th class="col-act">'+T('core.col_action','操作')+'</th></tr></thead><tbody>';
     pg.rows.forEach(function(e){
       h+='<tr><td class="mono">'+esc(e.evkey)+'</td>';
       h+='<td class="dim">'+esc(e.description||'-')+'</td>';
@@ -874,11 +874,11 @@ function acctEvkeysRender(){
         '<button class="btn btn-sm btn-danger" data-act="evkey-del" data-id="'+e.id+'">'+T('btn.delete','删除')+'</button></div></td></tr>';
     });
     h+='</tbody></table>'+pg.bar;
-  }else h+='<div class="empty">'+T('user.no_evkeys','暂无 evkey')+'</div>';
+  }else h+='<div class="empty">'+T('user.no_evkeys','暂无 EVkey')+'</div>';
   // -1 = 不限，恒可生成；0 = 禁止，不给按钮（后端也会拒）
-  if(maxv===0)h+='<p class="dim small" style="margin-top:10px">'+T('user.evkey_forbidden','该用户组不允许创建 evkey')+'</p>';
-  else if(maxv<0||evkeys.length<maxv)h+='<div class="field-row" style="margin-top:10px">'+
-    '<button class="btn btn-sm btn-primary" data-act="evkey-gen" data-id="'+id+'">'+T('user.gen_evkey','+ 生成新 evkey')+'</button></div>';
+  if(maxv===0)h+='<p class="dim small" style="margin-top:8px">'+T('user.evkey_forbidden','该用户组不允许创建 EVkey')+'</p>';
+  else if(maxv<0||evkeys.length<maxv)h+='<div class="field-row" style="margin-top:8px">'+
+    '<button class="btn btn-sm btn-primary" data-act="evkey-gen" data-id="'+id+'">'+T('user.gen_evkey','+ 生成新 EVkey')+'</button></div>';
   _acctDetailBody(h);
 }
 function loadAccountEvkeys(id){
@@ -896,14 +896,14 @@ function loadAccountEvkeys(id){
       _pgRender['acct-evkeys']=acctEvkeysRender;
       acctEvkeysRender();
     });
-  }).catch(function(){_acctDetailBody('<div class="empty">'+T('user.load_evkeys_failed','加载 API Keys 失败')+'</div>')});
+  }).catch(function(){_acctDetailBody('<div class="empty">'+T('user.load_evkeys_failed','加载 EVkey 失败')+'</div>')});
 }
 function genEvkey(id,btn){
   btnBusy(btn,true,T('user.generating','生成中…'));
   R.post('/admin/api/accounts/'+id+'/evkeys',{}).then(function(d){
     btnBusy(btn,false);
     if(d.evkey){
-      showSecret(T('user.evkey_generated','新 evkey 已生成'),d.evkey,T('user.evkey_generated_note','请复制并妥善保存，设备侧使用该 Key 鉴权。'));
+      showSecret(T('user.evkey_generated','新 EVkey 已生成'),d.evkey,T('user.evkey_generated_note','请复制并妥善保存，设备侧使用该 EVkey 鉴权。'));
       refreshAccountDetail();
     }
     else toast(d.message||T('user.gen_failed','生成失败'),'error');
@@ -913,16 +913,16 @@ function toggleEvkey(eid,en,el){
   btnBusy(el,true);
   R.put('/admin/api/evkeys/'+eid,{enabled:en}).then(function(d){
     btnBusy(el,false);
-    if(d.success){toast(en?T('user.evkey_enabled','evkey 已启用'):T('user.evkey_disabled','evkey 已禁用'),'success');refreshAccountDetail()}
+    if(d.success){toast(en?T('user.evkey_enabled','EVkey 已启用'):T('user.evkey_disabled','EVkey 已禁用'),'success');refreshAccountDetail()}
     else toast(d.message||T('core.op_failed','操作失败'),'error');
   }).catch(function(){btnBusy(el,false);toast(T('msg.network_error','网络错误'),'error')});
 }
 function delEvkey(eid){
-  uiConfirm({title:T('user.del_evkey_title','删除 evkey'),message:T('user.del_evkey_confirm','删除后使用该 Key 的设备将立即失效，且不可恢复。'),confirmText:T('btn.delete','删除'),danger:true}).then(function(ok){
+  uiConfirm({title:T('user.del_evkey_title','删除 EVkey'),message:T('user.del_evkey_confirm','删除后使用该 EVkey 的设备将立即失效，且不可恢复。'),confirmText:T('btn.delete','删除'),danger:true}).then(function(ok){
     if(!ok)return;
     R.del('/admin/api/evkeys/'+eid).then(function(d){
       if(d.success===false)toast(d.message||T('core.op_failed','操作失败'),'error');
-      else{toast(T('user.evkey_deleted','evkey 已删除'),'success');refreshAccountDetail()}
+      else{toast(T('user.evkey_deleted','EVkey 已删除'),'success');refreshAccountDetail()}
     });
   });
 }
@@ -1031,7 +1031,7 @@ function quotaPaneHtml(d){
     '</div>';
   h+='<div class="sec-title">'+T('user.grant_title','发放额度')+'</div>';
   if(unlimited){
-    h+='<div class="panel" style="margin-bottom:10px">'+T('user.quota_unlimited_note','用户组「{name}」的配额为 <b>不限</b>，无需发放；若要限制用量，请先在用户组里设置配额上限。',{name:esc(d.group_name||'')})+'</div>';
+    h+='<div class="panel" style="margin-bottom:8px">'+T('user.quota_unlimited_note','用户组「{name}」的配额为 <b>不限</b>，无需发放；若要限制用量，请先在用户组里设置配额上限。',{name:esc(d.group_name||'')})+'</div>';
   }
   h+='<div class="field-row">'+
     [500,1000,2000].map(function(n){
@@ -1051,7 +1051,7 @@ function quotaPaneHtml(d){
     '</div>';
   h+='<div class="small dim" style="margin-top:8px">'+T('user.quota_help','发放累加在账号上、跨周期保留，填负数即回收（调整后总额度不能小于 1）；重置只把「已用」归零，不动已发放的额度。')+'</div>';
   /* 图例挂在标题右侧而不是独占一行：弹窗空间紧凑，多一行会把表格再往下推 */
-  h+='<div class="sec-title" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">'+T('user.log_title','变动记录')+
+  h+='<div class="sec-title" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">'+T('user.log_title','变动记录')+
     '<span class="dot-legend" style="margin-top:0"><span class="lg-row">'+
     '<span class="lg-item" title="'+T('user.legend_grant_tip','管理员发放（或回收）额外额度')+'"><i class="dot dot-on"></i>'+T('user.grant','发放')+'</span>'+
     '<span class="lg-item" title="'+T('user.legend_reset_tip','管理员手动把本周期已用量归零，已发放额度保留')+'"><i class="dot dot-off"></i>'+T('user.reset','重置')+'</span>'+
@@ -1149,7 +1149,7 @@ function showMembership(id,name){
         '<label>'+T('user.reason_label','操作原因（选填，会记入下方记录）')+'</label><input class="input" id="m-reason" autocomplete="off" placeholder="'+T('user.reason_ph','例如：活动赠送 / 用户申请延长')+'">'+
         '<div class="modal-actions"><button class="btn btn-primary" data-act="mem-save" data-id="'+id+'">'+T('user.save_changes','保存变更')+'</button></div>';
     }
-    h+='<div class="sec-title" style="border-top:1px solid var(--line);padding-top:14px">'+T('user.log_title_count','变动记录（共 {n} 条）',{n:num(d.total||0)})+'</div>'+
+    h+='<div class="sec-title" style="border-top:1px solid var(--line);padding-top:16px">'+T('user.log_title_count','变动记录（共 {n} 条）',{n:num(d.total||0)})+'</div>'+
       '<div id="mem-log-body"></div><div id="mem-log-bar"></div>';
     var old=document.getElementById('mem-modal');if(old)old.remove();
     openModal(h,'mem-modal');
@@ -1237,7 +1237,7 @@ function toggleAppCheckAll(el){
 function appDetailHtml(g,cols){
   var apps=g.applications||[];
   var h='<td colspan="'+cols+'">';
-  if(!apps.length)h+='<div class="empty" style="padding:12px 0">'+T('user.no_pending','暂无待审批申请')+'</div>';
+  if(!apps.length)h+='<div class="empty" style="padding:16px 0">'+T('user.no_pending','暂无待审批申请')+'</div>';
   else{
     h+='<table class="stat-table">'+APP_COLS+'<thead><tr><th class="num">ID</th><th>'+T('user.col_desc','说明')+'</th><th>'+T('user.col_submitted','提交时间')+'</th><th>'+T('core.col_action','操作')+'</th></tr></thead><tbody>';
     apps.forEach(function(a){
@@ -1325,12 +1325,12 @@ function batchApproveApps(){
   var ids=appSelPendingIds();
   if(!ids.length){toast(T('user.no_pending_selected','所选账号没有待审批的申请'),'error');return}
   uiConfirm({title:T('user.batch_approve','批量批准'),
-    message:T('user.approve_keys_confirm','批准 {n} 个 evkey？',{n:ids.length})}).then(function(ok){
+    message:T('user.approve_keys_confirm','批准 {n} 个 EVkey？',{n:ids.length})}).then(function(ok){
     if(!ok)return;
     R.post('/admin/api/applications/batch',{action:'approve',ids:ids}).then(function(d){
       if(d.success===false){toast(d.message||T('core.op_failed','操作失败'),'error');return}
       // 批量里被上限挡下的账号：不提示的话会被误当成已批准
-      if(d.skipped&&d.skipped.length)toast(T('user.app_skipped','有 {n} 个申请因超过持有上限未批准：{first}',{n:d.skipped.length,first:d.skipped[0]}),'error');
+      if(d.skipped&&d.skipped.length)toast(T('user.app_skipped','有 {n} 个申请因超过 EVkey 持有上限未批准：{first}',{n:d.skipped.length,first:d.skipped[0]}),'error');
       clearAppSel();refreshApplications();refreshAccounts();
     }).catch(function(){toast(T('msg.network_error','网络错误'),'error')});
   });
@@ -1346,7 +1346,7 @@ function batchRejectApps(){
   var ids=appSelPendingIds();
   if(!ids.length){toast(T('user.no_pending_selected','所选账号没有待审批的申请'),'error');return}
   uiConfirm({danger:true,title:T('user.batch_reject','批量拒绝'),
-    message:T('user.reject_keys_confirm','拒绝 {n} 个 evkey？',{n:ids.length}),
+    message:T('user.reject_keys_confirm','拒绝 {n} 个 EVkey？',{n:ids.length}),
     confirmText:T('user.reject','拒绝')}).then(function(ok){
     if(!ok)return;
     R.post('/admin/api/applications/batch',{action:'reject',ids:ids}).then(function(d){

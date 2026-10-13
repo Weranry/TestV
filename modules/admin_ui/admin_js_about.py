@@ -58,7 +58,7 @@ function aboutHtml(d){
     _aboutRow(T('about.update_mode','更新模式'),aboutUpdateMode(st.mode))+
     _aboutRow(T('about.update_source','更新来源'),(st.remote||'origin')+' / '+(st.branch||T('about.branch_current','当前分支')))+
     '</div><div class="panel about-note" id="about-update-note">'+esc(aboutReason(chk))+'</div>'+
-    '<div class="about-actions" style="margin-top:14px">'+
+    '<div class="about-actions" style="margin-top:16px">'+
     '<button class="btn" id="about-check"'+dis+' onclick="aboutCheckUpdate(this)">'+esc(T('about.check_update','检查更新'))+'</button>'+
     '<button class="btn btn-primary" id="about-apply"'+dis+' onclick="aboutApplyUpdate(this)">'+esc(T('about.update_restart','更新并重启'))+'</button>'+
     '</div></div></div>';

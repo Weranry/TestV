@@ -70,9 +70,18 @@
   --geist-radius:6px;
   --geist-radius-surface:12px;
   --geist-radius-fullscreen:16px;
-  --geist-space:4px;--geist-space-2x:8px;--geist-space-3x:12px;--geist-space-4x:16px;
-  --geist-space-6x:24px;--geist-space-8x:32px;
+  /* 间距刻度（8px 主节奏 + 4px 子网格，全站唯一口径）：
+     所有 margin / padding / gap 只取 4 / 8 / 16 / 24 / 32 / 40 / 48 / 64 这一档，
+     4px 仅用于组件内部微间距（图标↔文字、圆点↔标签），块级留白一律 ≥ 8px。
+     不再出现 6 / 10 / 14 / 18 / 20 / 26 这类看着差不多、堆起来就乱的中间值 */
+  --geist-space:4px;--geist-space-2x:8px;--geist-space-4x:16px;
+  --geist-space-6x:24px;--geist-space-8x:32px;--geist-space-10x:40px;
+  --geist-space-12x:48px;--geist-space-16x:64px;
   --geist-size-small:32px;--geist-size-medium:36px;--geist-size-large:40px;
+  /* 字号阶梯（相邻档位至少差 2px，层级一眼分得开）：
+     11 微标 / 12 说明 / 14 正文 / 16 卡片标题 / 20 次级大数 / 24 页面标题 / 32 KPI 主数值 / 48 健康度评分 */
+  --fs-micro:11px;--fs-sm:12px;--fs-base:14px;--fs-lg:16px;
+  --fs-xl:20px;--fs-title:24px;--fs-2xl:32px;--fs-hero:48px;
 
   /* ---------- 焦点环 / 动效 / 层级 ---------- */
   --ds-focus-color:var(--ds-blue-900);
@@ -157,8 +166,8 @@
    同一次会话里也会出现两种粗细的条，故收口到这一处、所有页面口径一致。 */
 *{scrollbar-width:none;-ms-overflow-style:none}
 *::-webkit-scrollbar{width:0;height:0;display:none}
-.toasts{position:fixed;top:16px;right:16px;z-index:500;display:flex;flex-direction:column;gap:10px;width:340px;max-width:calc(100vw - 32px);pointer-events:none}
-.toast{display:flex;align-items:flex-start;gap:10px;padding:12px 13px;border-radius:12px;background:var(--ds-background-100);color:var(--fg,#171717);font-size:13px;line-height:1.5;box-shadow:var(--sh-2,0 0 0 1px rgba(0,0,0,.08),0 4px 8px rgba(0,0,0,.06));pointer-events:auto;animation:toastIn .22s cubic-bezier(.2,.8,.3,1)}
+.toasts{position:fixed;top:16px;right:16px;z-index:500;display:flex;flex-direction:column;gap:8px;width:340px;max-width:calc(100vw - 32px);pointer-events:none}
+.toast{display:flex;align-items:flex-start;gap:8px;padding:16px;border-radius:12px;background:var(--ds-background-100);color:var(--fg,#171717);font-size:14px;line-height:1.5;box-shadow:var(--sh-2,0 0 0 1px rgba(0,0,0,.08),0 4px 8px rgba(0,0,0,.06));pointer-events:auto;animation:toastIn .22s cubic-bezier(.2,.8,.3,1)}
 .toast.out{animation:toastOut .16s ease forwards}
 @keyframes toastIn{from{opacity:0;transform:translateX(14px) scale(.98)}to{opacity:1;transform:none}}
 @keyframes toastOut{to{opacity:0;transform:translateX(14px) scale(.98)}}
@@ -169,24 +178,31 @@
 .toast.info .ic{background:var(--fg3,#8f8f8f)}
 .toast.warn .ic{background:var(--orange-deep,#ab570a)}
 .toast .tx{flex:1;min-width:0;word-break:break-word}
-.toast .tx b{display:block;font-weight:600;margin-bottom:2px}
-.toast .x{cursor:pointer;color:var(--fg3,#8f8f8f);font-size:15px;line-height:1;padding:0 2px;flex-shrink:0}
+.toast .tx b{display:block;font-weight:600;margin-bottom:4px}
+.toast .x{cursor:pointer;color:var(--fg3,#8f8f8f);font-size:15px;line-height:1;padding:0 4px;flex-shrink:0}
 .toast .x:hover{color:var(--fg,#171717)}
-.modal-overlay{position:fixed;inset:0;background:var(--scrim,rgba(23,23,23,.45));z-index:400;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-overlay{position:fixed;inset:0;background:var(--scrim,rgba(23,23,23,.45));z-index:400;display:flex;align-items:center;justify-content:center;padding:24px}
 /* 全项目的内容型弹窗统一一档尺寸：固定宽 960px、固定高 640px，窄 / 矮视口靠 min() 自动
-   收缩、不溢出。高度必须是 height（不是 min-height）：账号详情在 API Keys / 额度 / 用量 /
+   收缩、不溢出。高度必须是 height（不是 min-height）：账号详情在 EVkeys / 额度 / 用量 /
    设备 之间切换、各列表数据量不同，弹窗尺寸都要纹丝不动，内容超出就落在弹窗内滚动，
    绝不随内容多寡「蹦跳」。确认 / 告知框是刻意紧凑的另一档，见下方 .modal.confirm */
-.modal{display:flex;flex-direction:column;background:var(--ds-background-100);border-radius:var(--r-lg,16px);padding:28px 30px;width:min(960px,100%);height:min(640px,86vh);overflow:hidden;box-shadow:var(--sh-2,0 0 0 1px rgba(0,0,0,.08),0 4px 8px rgba(0,0,0,.06));animation:modalIn .18s ease}
+.modal{display:flex;flex-direction:column;background:var(--ds-background-100);border-radius:var(--r-lg,16px);padding:32px;width:min(960px,100%);height:min(640px,86vh);overflow:hidden;box-shadow:var(--sh-2,0 0 0 1px rgba(0,0,0,.08),0 4px 8px rgba(0,0,0,.06));animation:modalIn .18s ease}
 @keyframes modalIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
 /* 容器只为「把焦点接进弹窗」而可聚焦（tabindex=-1），不该画出焦点框 */
 .modal:focus{outline:none}
 /* 头部：标题 + 右上角 X，不参与滚动。X 因此永远钉在右上角，正文只在下方的
    .modal-body 里滚，滚动的字永远不会钻到 X 底下（不叠加、不遮挡） */
-.modal-head{flex-shrink:0;display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px;margin-bottom:16px}
-/* 确认框的图标独占一行、压住标题（原样保留），所以让它占满整行把标题挤到下一行；
-   单行间距由 head 的 gap 给出，图标自己不再留底边距 */
-.modal-head .confirm-ic{flex-basis:100%;margin-bottom:0}
+.modal-head{flex-shrink:0;display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px;margin-bottom:16px}
+/* 确认框头部：图标在标题左侧、与标题同一行，且中心对齐同一条中线（align-items:center）。
+   头部里的 h3 必须显式 margin:0——`.modal.confirm h3` 的 8px 下边距优先级更高，
+   而 flex 居中连外边距一起算，会把图标顶得比标题中心高一截。
+   X 靠 margin-left:auto 依旧钉在右上角。
+   图标是定死的正方形圆，flex-shrink:0 保证标题再长也不压扁它；
+   别给它 flex-basis/width:100% 之类「撑行」写法——那会覆盖它自己的 width，
+   把圆拉成整行宽的椭圆（之前感叹号被拉长的元凶） */
+.modal.confirm .modal-head{align-items:center}
+.modal.confirm .modal-head h3{margin:0}
+.modal-head .confirm-ic{flex-shrink:0;margin-bottom:0}
 /* 正文：整个弹窗唯一可滚动的地方，内容不足时撑满剩余高度 */
 .modal-body{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
 .modal-body>*{flex-shrink:0}
@@ -198,18 +214,18 @@
 .modal-x:focus-visible{outline:none;box-shadow:var(--ds-focus-ring,0 0 0 2px #fff,0 0 0 4px #0070f3)}
 .modal h3{font-size:16px;font-weight:600;letter-spacing:-.4px;margin-bottom:16px}
 .modal-head h3{margin:0}
-.modal label{display:block;font-size:12px;font-weight:500;margin:14px 0 6px;color:var(--fg2,#4d4d4d)}
-.modal-actions{display:flex;gap:8px;margin-top:26px;justify-content:flex-end}
+.modal label{display:block;font-size:12px;font-weight:500;margin:16px 0 8px;color:var(--fg2,#4d4d4d)}
+.modal-actions{display:flex;gap:8px;margin-top:24px;justify-content:flex-end}
 /* 底部操作条：同样不参与滚动，永远贴在弹窗底边（正文 flex:1 把它顶到最下面） */
 .modal>.modal-actions{flex-shrink:0;margin-top:0;padding-top:24px}
 /* 确认 / 告知框：刻意紧凑的另一档——height:auto 退出上面的固定高、min-height:0 退出最小高，
    只告知一两句话却撑成 640px 的空白反而难看 */
-.modal.confirm{max-width:400px;height:auto;min-height:0;padding:22px;border-radius:var(--r-md,12px)}
-.modal.confirm h3{margin-bottom:6px}
+.modal.confirm{max-width:400px;height:auto;min-height:0;padding:24px;border-radius:var(--r-md,12px)}
+.modal.confirm h3{margin-bottom:8px}
 .modal.confirm .cd{font-size:14px;color:var(--fg2,#4d4d4d);line-height:1.6}
 /* 弹窗标题下的一句说明：抵掉 h3 的 16px 下边距，把说明拉近标题、与正文拉开 */
-.modal-sub{margin:-10px 0 14px}
-.confirm-ic{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;color:#fff;background:var(--blue,#0070f3);margin-bottom:12px}
+.modal-sub{margin:-8px 0 16px}
+.confirm-ic{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff;background:var(--blue,#0070f3);margin-bottom:16px}
 .modal.confirm.danger .confirm-ic{background:var(--red,#ee0000)}
 .btn-danger-solid{background:var(--red,#ee0000);color:#fff;box-shadow:0 0 0 1px var(--red,#ee0000)}
 .btn-danger-solid:hover{background:var(--red-deep,#c50000)}
@@ -226,13 +242,13 @@
    由 .apply-row>.pw 自己撑宽，两种布局同一套标记 */
 .pw{position:relative;display:flex;align-items:center}
 .pw>.input{padding-right:48px;margin-bottom:0}
-.pw.pw-block{margin-bottom:12px}
-.pw-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:none;
-  font-family:inherit;font-size:12px;line-height:1;color:var(--fg3,#8f8f8f);cursor:pointer;padding:6px 4px;border-radius:4px}
+.pw.pw-block{margin-bottom:16px}
+.pw-eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:none;
+  font-family:inherit;font-size:12px;line-height:1;color:var(--fg3,#8f8f8f);cursor:pointer;padding:8px 4px;border-radius:4px}
 .pw-eye:hover{color:var(--fg,#171717)}
 .pw-eye:focus-visible{outline:none;box-shadow:var(--ds-focus-ring,0 0 0 2px #fff,0 0 0 4px #0070f3)}
 /* ============ 分页条（各列表共用：管理面板 + 用户控制台都注入这一份） ============ */
-.pager{justify-content:flex-end;gap:10px;margin-top:12px;flex-wrap:wrap}
+.pager{justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap}
 .pager button:disabled{opacity:.4;cursor:not-allowed}
 /* ============ 视觉隐藏（读屏可见） ============ */
 /* 状态列只有一个色点，说明原本只挂在 title 上——空元素上的 title 并不保证被播报。
@@ -247,53 +263,53 @@
 
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--sans);background:var(--bg);color:var(--fg);min-height:100vh}
-.wrap{max-width:1140px;margin:0 auto;padding:36px 24px 72px}
+.wrap{max-width:1140px;margin:0 auto;padding:32px 24px 64px}
 /* 顶栏：logo 回首页，右侧给一个登录入口（访客页唯一的跳出点） */
-.hd{display:flex;align-items:center;gap:10px;margin-bottom:26px}
-.hd .brand{display:flex;align-items:center;gap:8px;font-size:15px;font-weight:600;letter-spacing:-.3px;color:var(--fg);text-decoration:none}
+.hd{display:flex;align-items:center;gap:8px;margin-bottom:24px}
+.hd .brand{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600;letter-spacing:-.3px;color:var(--fg);text-decoration:none}
 .hd .brand:hover{opacity:.75}
 /* 顶栏品牌放大：只动访客页顶栏这一处——共享层的 .logo-mark 是全局 20×20
    （侧栏、概览缩略图都在用），不能改。高度必须一起给：这个 svg 的 viewBox 是竖版，
    只改宽度的话高度仍被 20px 钉住、图形反而更小，宽度也白留 */
 .hd .brand .logo-mark{width:32px;height:32px}
-.hd .brand>span{font-size:22px}
+.hd .brand>span{font-size:24px}
 .hd .sp{flex:1}
-.hd .lnk{font-size:13px;color:var(--fg2);text-decoration:none;padding:7px 14px;border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--line);transition:all var(--motion-fast)}
+.hd .lnk{font-size:12px;color:var(--fg2);text-decoration:none;padding:8px 16px;border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--line);transition:all var(--motion-fast)}
 .hd .lnk:hover{color:var(--fg);background:var(--soft)}
 /* 框架版本号：挂在顶栏品牌旁，说明这一页由哪个框架版本渲染。
    等宽小字 + 淡色胶囊，不抢标题与卡片的层级 */
 .hd .ver{font-family:var(--mono);font-size:11px;color:var(--fg3);padding:2px 8px;border-radius:999px;background:var(--soft);align-self:center}
-h1{font-size:30px;font-weight:600;letter-spacing:-1px}
+h1{font-size:32px;font-weight:600;letter-spacing:-1px}
 /* 分区栏：页头（这一页是什么）与卡片网格（有哪些插件）之间的结构线。
    没有它时，标题、数量、卡片是三层同样口吻的堆叠，层次读不出来 */
-.secbar{display:flex;align-items:baseline;justify-content:space-between;gap:12px;
-  margin-top:28px;padding-bottom:11px;border-bottom:1px solid var(--line)}
+.secbar{display:flex;align-items:baseline;justify-content:space-between;gap:16px;
+  margin-top:24px;padding-bottom:8px;border-bottom:1px solid var(--line)}
 .secbar-t{font-size:14px;font-weight:600;letter-spacing:-.2px;color:var(--fg)}
 .secbar-c{font-size:12px;color:var(--fg3)}
 /* 网格：宽屏一行三个，窄屏逐级降到两列 / 单列。卡片高度由内容（四段固定行数）决定，
    不再用 aspect-ratio 撑正方形——内容之外的地方全成了空白 */
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:16px}
-.empty{font-size:13px;color:var(--fg3);padding:32px 0}
+.empty{font-size:14px;color:var(--fg3);padding:32px 0}
 /* ============ 卡片（单面，点击开弹窗） ============ */
 /* 高度不靠 aspect-ratio 撑：四段各自的行数是硬上限——标题 1 行、作者 1 行、描述 3 行、
    用户组 2 行，加起来高度恒定，同一行的卡片因此天然齐平，内容超了截断 */
-.xcard{display:flex;flex-direction:column;padding:18px;border-radius:var(--r-md);
+.xcard{display:flex;flex-direction:column;padding:16px;border-radius:var(--r-md);
   background:var(--ds-background-100);box-shadow:var(--sh-1);cursor:pointer;outline:none;overflow:hidden;
   transition:box-shadow var(--motion-fast),transform var(--motion-fast)}
 .xcard:hover{box-shadow:var(--sh-2);transform:translateY(-1px)}
 .xcard:focus-visible{box-shadow:var(--ds-focus-ring)}
 /* 名称一行；作者一行——**没有作者也占着这一行的高度**，否则有 / 没作者的卡片会差出一行 */
-.xname{flex-shrink:0;font-size:17px;font-weight:600;letter-spacing:-.4px;line-height:22px;height:22px;
+.xname{flex-shrink:0;font-size:16px;font-weight:600;letter-spacing:-.4px;line-height:24px;height:24px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .xby{flex-shrink:0;margin-top:4px;font-size:12px;line-height:18px;height:18px;color:var(--fg3);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 /* 描述固定三行：短的留白、长的在第三行收省略号，卡片高度不随描述长短变 */
-.xdesc{flex-shrink:0;margin-top:10px;font-size:13px;line-height:20px;height:60px;color:var(--fg2);
+.xdesc{flex-shrink:0;margin-top:8px;font-size:14px;line-height:20px;height:60px;color:var(--fg2);
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
 /* 可用用户组直接铺标签、不再先写一行「可用用户组」：固定两行高度，超出的组裁掉。
    align-content:flex-end——单排标签沉在第二排（底部）对齐，只有一排放不下、
    溢出成两排时才从第一排开始铺满这两排 */
-.xtags{flex-shrink:0;display:flex;flex-wrap:wrap;align-content:flex-end;gap:6px;margin-top:10px;
+.xtags{flex-shrink:0;display:flex;flex-wrap:wrap;align-content:flex-end;gap:8px;margin-top:8px;
   height:48px;overflow:hidden}
 .xtags .xnone{font-size:12px;color:var(--fg3)}
 .chip{display:inline-block;font-size:11px;line-height:1.7;padding:1px 8px;border-radius:999px;
@@ -308,39 +324,39 @@ h1{font-size:30px;font-weight:600;letter-spacing:-1px}
 .xm-bg{position:absolute;inset:0;background:var(--scrim)}
 .xm-box{position:relative;display:flex;flex-direction:column;width:100%;max-width:640px;max-height:calc(100vh - 48px);
   background:var(--ds-background-100);border-radius:var(--r-lg);box-shadow:var(--sh-2);overflow:hidden}
-.xm-hd{flex-shrink:0;display:flex;align-items:flex-start;gap:10px;padding:18px 20px;border-bottom:1px solid var(--line-soft)}
+.xm-hd{flex-shrink:0;display:flex;align-items:flex-start;gap:8px;padding:16px 24px;border-bottom:1px solid var(--line-soft)}
 .xm-ttl{flex:1;min-width:0}
-.xm-name{display:block;font-size:17px;font-weight:600;letter-spacing:-.3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.xm-name{display:block;font-size:16px;font-weight:600;letter-spacing:-.3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .xm-meta{display:block;margin-top:4px;font-size:12px;color:var(--fg3)}
 .xm-x{flex-shrink:0;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:none;padding:0;
   border-radius:var(--r-sm);background:none;color:var(--fg3);font-size:18px;line-height:1;cursor:pointer;transition:all var(--motion-fast)}
 .xm-x:hover{color:var(--fg);background:var(--soft)}
-.xm-bd{flex:1;min-height:0;overflow-y:auto;padding:2px 20px 22px}
+.xm-bd{flex:1;min-height:0;overflow-y:auto;padding:0 24px 24px}
 /* 弹窗两段：路由是主角（深色 + 稍大），插件参数次之 */
 .sec{font-size:12px;font-weight:600;letter-spacing:-.1px;color:var(--fg2);margin:16px 0 8px}
-.rt{display:flex;align-items:flex-start;gap:8px;padding:7px 0;border-bottom:1px solid var(--line-soft)}
+.rt{display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--line-soft)}
 .rt:last-child{border-bottom:none}
-.rt .m{flex-shrink:0;font-family:var(--mono);font-size:10px;line-height:1.8;color:var(--fg3);background:var(--soft);
-  padding:0 5px;border-radius:4px;margin-top:1px}
+.rt .m{flex-shrink:0;font-family:var(--mono);font-size:11px;line-height:1.8;color:var(--fg3);background:var(--soft);
+  padding:0 8px;border-radius:4px;margin-top:1px}
 .rtb{flex:1;min-width:0}
 .rt .p{display:block;font-family:var(--mono);font-size:12px;line-height:1.6;color:var(--fg);word-break:break-all}
 /* 从属层：尺寸属于「这条路由的可选项」，缩进挂在路由下面，用左侧竖线表达从属关系 */
-.rtsub{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin-top:6px;padding-left:10px;
+.rtsub{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;padding-left:8px;
   border-left:2px solid var(--line)}
-.rtsub-k{font-size:10px;color:var(--fg3)}
-.rtsub-v{font-family:var(--mono);font-size:11px;color:var(--fg2);background:var(--soft);padding:1px 6px;border-radius:4px}
+.rtsub-k{font-size:11px;color:var(--fg3)}
+.rtsub-v{font-family:var(--mono);font-size:11px;color:var(--fg2);background:var(--soft);padding:1px 8px;border-radius:4px}
 /* 参数只列名字：默认值是插件自带的、装完就不会变，列出来只会盖过参数名本身 */
-.pmrow{display:flex;flex-wrap:wrap;gap:6px}
-.pmk{font-family:var(--mono);font-size:11px;color:var(--fg2);background:var(--soft);padding:2px 7px;border-radius:4px}
+.pmrow{display:flex;flex-wrap:wrap;gap:8px}
+.pmk{font-family:var(--mono);font-size:11px;color:var(--fg2);background:var(--soft);padding:2px 8px;border-radius:4px}
 .none{font-size:12px;color:var(--fg3);padding:4px 0}
 @media (max-width:900px){.grid{grid-template-columns:repeat(2,1fr)}}
 @media (max-width:560px){
-  .wrap{padding:24px 16px 56px}
-  .grid{grid-template-columns:1fr;gap:12px}
-  .xmodal{padding:10px}
-  .xm-box{max-height:calc(100vh - 20px);border-radius:var(--r-md)}
-  .xm-hd{padding:14px 14px}
-  .xm-bd{padding:0 14px 18px}
+  .wrap{padding:24px 16px 48px}
+  .grid{grid-template-columns:1fr;gap:16px}
+  .xmodal{padding:16px}
+  .xm-box{max-height:calc(100vh - 32px);border-radius:var(--r-md)}
+  .xm-hd{padding:16px}
+  .xm-bd{padding:0 16px 16px}
 }
 </style>
 <script>(function(){try{var t=localStorage.getItem('ink_theme');if(t==='dark'||(t!=='light'&&window.matchMedia&&window.matchMedia('(prefers-color-scheme:dark)').matches))document.documentElement.className+=' dark'}catch(e){}})();</script>
@@ -349,7 +365,7 @@ h1{font-size:30px;font-weight:600;letter-spacing:-1px}
 <div class="wrap">
   <div class="hd">
     <a class="brand" href="/"><svg class="logo-mark" viewBox="7 -3 128 161.6217803955078" width="20" height="20" aria-hidden="true" focusable="false"><path fill="#8A6DB1" d="M61 86.1962L26.5 106.115C22.5 108.424 17.5 105.537 17.5 100.919L17.5 61.0814C17.5 56.4626 22.5 53.5759 26.5 55.8853L61 75.8038C65 78.1133 65 83.8867 61 86.1962Z"/><path fill="#8A6DB1" d="M119 53.1962L84.5 73.1147C80.5 75.4241 75.5 72.5374 75.5 67.9186L75.5 28.0814C75.5 23.4626 80.5 20.5759 84.5 22.8853L119 42.8038C123 45.1132 123 50.8868 119 53.1962Z"/><path fill="#6E5494" d="M72.3109 27.8923L72.3109 67.7295C72.3109 72.3483 67.3109 75.235 63.3109 72.9256L28.8109 53.007C24.8109 50.6976 24.8109 44.9241 28.8109 42.6147L63.3109 22.6962C67.3109 20.3867 72.3109 23.2735 72.3109 27.8923Z"/><path fill="#6E5494" d="M72.3109 93.8923L72.3109 133.729C72.3109 138.348 67.3109 141.235 63.3109 138.926L28.8109 119.007C24.8109 116.698 24.8109 110.924 28.8109 108.615L63.3109 88.6962C67.3109 86.3867 72.3109 89.2735 72.3109 93.8923Z"/><circle cx="101" cy="96" r="12" fill="#5A4378"/></svg><span>eInkViews</span></a>
-    <span class="ver">v26.13.0</span>
+    <span class="ver">v26.16.0</span>
     <span class="sp"></span>
     
   </div>
@@ -375,7 +391,7 @@ h1{font-size:30px;font-weight:600;letter-spacing:-1px}
     <div class="xm-bd" id="xm-bd"></div>
   </div>
 </div>
-<script type="application/json" id="i18n-data">{"alert.ok": "Got it", "btn.cancel": "Cancel", "btn.close": "Close", "btn.confirm": "Confirm", "btn.copy": "Copy", "confirm.title": "Confirm", "confirm.type_after": "to confirm", "confirm.type_before": "Type", "empty.member_logs": "No membership changes yet", "explore.login": "Login / Register", "explore.section_plugins": "Plugins", "explore.title": "Plugin explorer", "member.action_activate": "Code activation", "member.action_expire": "Expiry revert", "member.action_other": "Change", "member.action_set": "Admin change", "member.chg_exp": "Expiry {v}", "member.chg_fallback": "Fallback {v}", "member.chg_group": "Group {name}", "member.col_admin": "Operator", "member.col_change": "Change", "member.col_reason": "Reason", "member.col_time": "Time", "member.col_type": "Type", "member.forever": "Permanent", "member.group_n": "Group #{n}", "member.join_sep": "; ", "member.no_transfer": "No fallback", "member.system": "System", "msg.copied": "Copied to clipboard", "msg.copy_failed": "Copy failed, please select it manually", "msg.processing": "Working…", "msg.session_expired": "Request failed or the session has expired, please sign in again", "pager.first": "First", "pager.info": "{cur} / {total} · {n} total", "pager.last": "Last", "pager.next": "Next", "pager.prev": "Prev", "pw.hide": "Hide password", "pw.show": "Show password", "theme.to_dark": "Switch to dark", "theme.to_light": "Switch to light", "user.evkey_limit_n": "{n} keys", "user.forbidden": "Disabled", "user.period_day": "daily", "user.period_month": "monthly", "user.period_short_day": "day", "user.period_short_month": "month", "user.period_short_week": "week", "user.period_short_year": "year", "user.period_trial_short": "total", "user.period_week": "weekly", "user.period_year": "yearly", "user.quota_period": "{n}/{period}", "user.quota_trial": "{n}/total", "user.unlimited": "Unlimited"}</script>
+<script type="application/json" id="i18n-data">{"alert.ok": "Got it", "btn.cancel": "Cancel", "btn.close": "Close", "btn.confirm": "Confirm", "btn.copy": "Copy", "confirm.title": "Confirm", "confirm.type_after": "to confirm", "confirm.type_before": "Type", "empty.member_logs": "No membership changes yet", "explore.login": "Login / Register", "explore.section_plugins": "Plugins", "explore.title": "Plugin explorer", "member.action_activate": "Code activation", "member.action_expire": "Expiry revert", "member.action_other": "Change", "member.action_set": "Admin change", "member.chg_exp": "Expiry {v}", "member.chg_fallback": "Fallback {v}", "member.chg_group": "Group {name}", "member.col_admin": "Operator", "member.col_change": "Change", "member.col_reason": "Reason", "member.col_time": "Time", "member.col_type": "Type", "member.forever": "Permanent", "member.group_n": "Group #{n}", "member.join_sep": "; ", "member.no_transfer": "No fallback", "member.system": "System", "msg.copied": "Copied to clipboard", "msg.copy_failed": "Copy failed, please select it manually", "msg.processing": "Working…", "msg.session_expired": "Request failed or the session has expired, please sign in again", "pager.first": "First", "pager.info": "{cur} / {total} · {n} total", "pager.last": "Last", "pager.next": "Next", "pager.prev": "Prev", "pw.hide": "Hide password", "pw.show": "Show password", "theme.to_dark": "Switch to dark", "theme.to_light": "Switch to light", "user.evkey_limit_n": "{n} EVkeys", "user.forbidden": "Disabled", "user.period_day": "daily", "user.period_month": "monthly", "user.period_short_day": "day", "user.period_short_month": "month", "user.period_short_week": "week", "user.period_short_year": "year", "user.period_trial_short": "total", "user.period_week": "weekly", "user.period_year": "yearly", "user.quota_period": "{n}/{period}", "user.quota_trial": "{n}/total", "user.unlimited": "Unlimited"}</script>
 <script>
 /* ============ i18n：服务端按当前语言把整份注册表注入 #i18n-data ============ */
 var I18N={};
@@ -770,7 +786,7 @@ document.addEventListener('DOMContentLoaded',function(){
 /* ============ 限额与配额的取值口径（面板、用户控制台共用） ============ */
 /* 0 与 -1 都是合法上限，取默认值不能写 `|| 默认`（`0||-1` 会把「禁止」变成「不限」） */
 function _intVal(v,d){var n=parseInt(v,10);return isNaN(n)?d:n}
-/* evkey 持有上限三态：-1 = 不限，0 = 该组禁止创建，N = 最多 N 个 */
+/* EVkey 持有上限三态：-1 = 不限，0 = 该组禁止创建，N = 最多 N 个 */
 function evkeyLimitText(v){
   var n=_intVal(v,null);
   if(n===null)return '-';

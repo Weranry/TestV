@@ -25,8 +25,8 @@ a{color:var(--blue);text-decoration:none}
 .shell.nonav .snav-toggle{display:none}
 .sidebar{position:sticky;top:0;z-index:120;height:100vh;display:flex;flex-direction:column;background:var(--ds-background-100);border-right:1px solid var(--line)}
 /* 品牌区：侧栏的 logo 比顶栏那份放大一档（26px 标记 + 16px 字），头部才撑得住这一列宽度 */
-.side-brand{display:flex;align-items:center;justify-content:space-between;gap:6px;height:56px;padding:0 12px 0 16px;flex-shrink:0}
-.logo{display:inline-flex;align-items:center;gap:9px;font-weight:600;font-size:16px;letter-spacing:-.4px;color:var(--fg)}
+.side-brand{display:flex;align-items:center;justify-content:space-between;gap:8px;height:56px;padding:0 16px;flex-shrink:0}
+.logo{display:inline-flex;align-items:center;gap:8px;font-weight:600;font-size:16px;letter-spacing:-.4px;color:var(--fg)}
 /* 侧栏里的标记单独放大：共享层的 .logo-mark 是全局 20×20，顶栏与概览缩略图都在用，
    直接改全局会把别处一起撑大 */
 .side-brand .logo-mark{width:26px;height:26px}
@@ -39,14 +39,14 @@ a{color:var(--blue);text-decoration:none}
 .snav-back{width:30px;height:30px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:var(--r-sm);background:none;color:var(--fg3);cursor:pointer;padding:0}
 .snav-back:hover{color:var(--fg);background:var(--soft)}
 .snav-back[hidden]{display:none}
-/* 导航列表：列向排布 + 2px 项间距。行高 36px、内边距 6px，配上 20px 的图标，
+/* 导航列表：列向排布 + 4px 项间距。行高 36px、内边距 8px，配上 20px 的图标，
    整条侧栏的节奏才不至于稀疏 */
-.snav{flex:1;overflow-y:auto;padding:6px 10px 14px;display:flex;flex-direction:column;gap:2px}
+.snav{flex:1;overflow-y:auto;padding:8px 8px 16px;display:flex;flex-direction:column;gap:4px}
 /* 加了 display:flex 会盖掉 UA 的 [hidden]{display:none}，两份菜单靠 hidden 互斥，这里补回来 */
 .snav[hidden]{display:none}
 /* 菜单项：行高 36px，默认中性灰、hover 浅底、选中浅底 + 墨色加粗。
    选中态**不再画左缘指示条**：Geist 的 selected 只用底下那一块浅灰，左指示条是另一套语言 */
-.snav .tab{position:relative;display:flex;align-items:center;gap:10px;min-height:36px;font-size:15px;font-weight:500;color:var(--fg2);padding:6px 10px;border-radius:var(--r-sm);cursor:pointer;transition:background var(--motion-fast),color var(--motion-fast)}
+.snav .tab{position:relative;display:flex;align-items:center;gap:8px;min-height:36px;font-size:14px;font-weight:500;color:var(--fg2);padding:8px;border-radius:var(--r-sm);cursor:pointer;transition:background var(--motion-fast),color var(--motion-fast)}
 .snav .tab:hover{color:var(--fg);background:var(--soft)}
 .snav .tab.on{background:var(--soft-2);color:var(--fg)}
 .snav-group{position:relative}
@@ -54,16 +54,16 @@ a{color:var(--blue);text-decoration:none}
 .snav-arrow:hover{background:var(--ds-background-100);color:var(--fg)}
 .snav-arrow svg{width:14px;height:14px;transition:transform .18s}
 .snav-arrow[aria-expanded="true"] svg{transform:rotate(180deg)}
-/* 二级菜单与一级项之间留出 4px（容器 gap 2px + 这里的 2px 外边距）：两块浅灰底块
+/* 二级菜单与一级项之间留出 8px（容器 gap 4px + 这里的 4px 外边距）：两块浅灰底块
    直接贴住会连成一坨，看不出层级 */
-.snav-sub{display:flex;flex-direction:column;gap:2px;padding-left:14px;margin:2px 0}
+.snav-sub{display:flex;flex-direction:column;gap:4px;padding-left:16px;margin:4px 0}
 .snav-sub[hidden]{display:none}
-.snav-sub .tab{font-size:14px;font-weight:400;min-height:32px;padding:5px 10px}
+.snav-sub .tab{font-size:12px;font-weight:400;min-height:32px;padding:4px 8px}
 /* 侧栏底部：头像 + 用户名 + 图标按钮组（设置 / 返回 / 退出）。
    有侧栏时这一组恒在这里；无侧栏的用户（普通用户）改由顶栏右侧承载同一份 */
-.snav-foot{border-top:1px solid var(--line);padding:10px 12px;display:flex;align-items:center;gap:6px;font-size:14px;color:var(--fg2);flex-shrink:0}
+.snav-foot{border-top:1px solid var(--line);padding:8px 16px;display:flex;align-items:center;gap:8px;font-size:14px;color:var(--fg2);flex-shrink:0}
 /* 头像 = 黑底 + 用户名首字母，没有独立的上传/图片资源 */
-.avatar{width:30px;height:30px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:50%;background:var(--ds-gray-1000);color:var(--ds-background-100);font-size:13px;font-weight:600;text-transform:uppercase;cursor:pointer;padding:0}
+.avatar{width:30px;height:30px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:50%;background:var(--ds-gray-1000);color:var(--ds-background-100);font-size:12px;font-weight:600;text-transform:uppercase;cursor:pointer;padding:0}
 .avatar:hover{background:var(--ds-gray-900)}
 .snav-foot .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;color:var(--fg);cursor:pointer}
 .snav-foot .nm:hover{text-decoration:underline}
@@ -81,56 +81,56 @@ a{color:var(--blue);text-decoration:none}
 /* ---------- Layout ---------- */
 .workspace{min-width:0;display:flex;flex-direction:column;min-height:100vh}
 /* 内容区顶栏：面包屑常驻，窄屏时才露出汉堡按钮（侧边栏转为抽屉） */
-.topbar{position:sticky;top:0;z-index:110;height:56px;display:flex;align-items:center;gap:12px;padding:0 24px;background:var(--topbar);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
-.crumbs{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--fg3);min-width:0;overflow:hidden;white-space:nowrap}
+.topbar{position:sticky;top:0;z-index:110;height:56px;display:flex;align-items:center;gap:16px;padding:0 24px;background:var(--topbar);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.crumbs{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fg3);min-width:0;overflow:hidden;white-space:nowrap}
 .crumbs .sep{color:var(--faint)}
 .crumbs .cur{color:var(--fg);font-weight:500}
 /* 顶栏右端：主题切换常驻，用户组（无侧栏时才出现）跟在它后面。
    margin-left:auto 挪到主题按钮上，用户组那侧的自动边距要归零，否则两块之间会被平分出一段空白 */
 .theme-btn{margin-left:auto}
 /* 无侧栏时的用户组：与侧栏底部那份同构（头像 + 名字 + 设置 + 退出），贴在最右端。有侧栏时隐藏 */
-.topbar-user{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--fg2)}
+.topbar-user{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--fg2)}
 .topbar-user[hidden]{display:none}
 .topbar-user .nm{max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-weight:500;color:var(--fg);cursor:pointer}
 .topbar-user .nm:hover{text-decoration:underline}
 .snav-toggle{display:none;width:32px;height:32px;align-items:center;justify-content:center;border:none;border-radius:var(--r-sm);background:var(--ds-background-100);box-shadow:0 0 0 1px var(--line);color:var(--fg2);cursor:pointer;flex-shrink:0;padding:0}
 .snav-toggle:hover{color:var(--fg);background:var(--soft)}
 /* 内容区宽度：与用户控制台取同一个值，同一块屏幕换一边看卡片宽度才不会跳 */
-main{padding:24px 24px 60px;max-width:1400px;margin:0 auto;width:100%}
+main{padding:24px 24px 64px;max-width:1400px;margin:0 auto;width:100%}
 .page{display:none;animation:fadeIn .18s ease}.page.on{display:block}
 @keyframes fadeIn{from{opacity:0;transform:translateY(2px)}to{opacity:1;transform:none}}
 .dim{color:var(--fg2)}.small{font-size:12px}.strong{font-weight:600}
 /* ---------- Page head ---------- */
 /* 分页大标题与描述已移除（层级由侧栏菜单 + 面包屑承担），这里只剩右上角的操作按钮行 */
-.page-head{display:flex;align-items:center;justify-content:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:18px}
+.page-head{display:flex;align-items:center;justify-content:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:16px}
 .page-head .acts{justify-content:flex-end}
 /* ---------- Cards ---------- */
-.card{background:var(--ds-background-100);border-radius:var(--r-md);box-shadow:var(--card-shadow);margin-bottom:18px;overflow:hidden}
-.card-header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.card{background:var(--ds-background-100);border-radius:var(--r-md);box-shadow:var(--card-shadow);margin-bottom:16px;overflow:hidden}
+.card-header{padding:16px 24px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
 .card-header h2{font-size:16px;font-weight:600;letter-spacing:-.4px}
-.card-title{display:flex;flex-direction:column;gap:3px;min-width:0}
+.card-title{display:flex;flex-direction:column;gap:4px;min-width:0}
 .card-desc{font-size:12px;color:var(--fg2);font-weight:400}
 /* 卡片头右上角的计数小字（「已使用 N 个 / M」这类）：中文的 min-content 只有一个字宽，
    被按钮挤压时会逐字竖排、看上去像被按钮盖住。禁止收缩，并把「计数 ↔ 按钮」的间距从
-   6px 提到 12px（与「标题 ↔ 计数」一致），深色按钮才不会把灰字压得贴在一起 */
+   6px 提到 16px（与「标题 ↔ 计数」一致），深色按钮才不会把灰字压得贴在一起 */
 .card-header small,.card-header .acts .dim{white-space:nowrap;flex-shrink:0}
-.card-header .acts>.dim+.btn{margin-left:6px}
-.card-body{padding:20px}
+.card-header .acts>.dim+.btn{margin-left:8px}
+.card-body{padding:24px}
 /* 设置类卡片：与数据类卡片在视觉上区分开（只靠底色，不再给 h2 加前置圆点——
    那个圆点会把标题文字右移 14px，而下面的 .card-desc 不跟着移，同一个卡片内
    标题与说明的左边缘就对不齐了，跨卡片看标题也会比别的卡片缩进一截） */
 .card.cfg .card-header{background:var(--soft);border-bottom-color:var(--line)}
-.sec-title{font-size:14px;font-weight:600;margin:20px 0 10px;color:var(--fg);letter-spacing:-.2px}
-.panel{background:var(--soft);border-radius:var(--r-sm);box-shadow:var(--ring);padding:12px 14px;font-size:13px}
+.sec-title{font-size:14px;font-weight:600;margin:24px 0 8px;color:var(--fg);letter-spacing:-.2px}
+.panel{background:var(--soft);border-radius:var(--r-sm);box-shadow:var(--ring);padding:16px;font-size:12px}
 /* ---------- Metrics ---------- */
-.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px}
 /* 页面直属的 KPI 卡片组：下方必然跟着卡片，间距在这里统一给（以前靠各页手写内联
    margin-top:18px 兜，概览页两处、备份页一处，索性收进样式表，新增页面不必再记这条） */
-.page>.metrics{margin-bottom:18px}
+.page>.metrics{margin-bottom:16px}
 /* 卡片体里后面还有内容的 KPI 组：与下方区块留出一致的间距（不再各页内联 margin-bottom） */
 .card-body>.metrics:not(:last-child){margin-bottom:16px}
-.metric{padding:16px 20px;border-radius:var(--r-md);box-shadow:var(--card-shadow);background:var(--ds-background-100)}
-.metric .l{font-size:12px;color:var(--fg2);margin-bottom:6px}
+.metric{padding:16px 24px;border-radius:var(--r-md);box-shadow:var(--card-shadow);background:var(--ds-background-100)}
+.metric .l{font-size:12px;color:var(--fg2);margin-bottom:8px}
 .metric .k{font-size:32px;font-weight:600;letter-spacing:-1.28px;font-variant-numeric:tabular-nums}
 .metric .k.red{color:var(--red)}
 /* KPI 主数值里的次级说明（如「/ 200 条」上限）：字号字重降一档，与主数值同基线 */
@@ -139,15 +139,15 @@ main{padding:24px 24px 60px;max-width:1400px;margin:0 auto;width:100%}
 input,select,button,textarea{font-family:inherit;font-size:inherit}
 /* 控件描边与 hover 一律走 gray-alpha（黑透明 → 深色下自动变白透明）；焦点统一用官方焦点环：
    内圈取当前表面底色、外圈取焦点色，控件贴在白底/黑底上都能把环「切」出来 */
-.input{height:32px;padding:0 10px;border:none;border-radius:var(--r-sm);font-size:14px;outline:none;background:var(--ds-background-100);box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);color:var(--fg);transition:box-shadow var(--motion-fast)}
+.input{height:32px;padding:0 16px;border:none;border-radius:var(--r-sm);font-size:14px;outline:none;background:var(--ds-background-100);box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);color:var(--fg);transition:box-shadow var(--motion-fast)}
 .input:hover{box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-600)}
 .input:focus{box-shadow:inset 0 0 0 1px var(--ds-focus-color),var(--ds-focus-ring)}
 .input::placeholder{color:var(--faint)}
 select.input{-webkit-appearance:none;appearance:none;cursor:pointer;padding-right:28px;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 6.5l4 4 4-4' fill='none' stroke='%238f8f8f' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  background-repeat:no-repeat;background-position:right 9px center;background-size:12px}
+  background-repeat:no-repeat;background-position:right 8px center;background-size:12px}
 /* 卡片头里的下拉更矮更窄，箭头跟着缩，否则会压到选项文字上 */
-.card-header select.input{padding-right:22px;background-position:right 6px center;background-size:10px}
+.card-header select.input{padding-right:24px;background-position:right 8px center;background-size:10px}
 /* 复选框统一成面板的扁平风格：自绘 16px 方框，选中即 Geist 蓝填充 + 白色对勾。
    与下面的开关（.sw.on）取同一个蓝，两者摆在一行才像一套控件。
    vertical-align 只在非 flex 的行内排布（如弹窗里「允许反复激活」那种）起作用，flex 容器里会被忽略 */
@@ -168,7 +168,7 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed}
 /* 中文的 min-content 宽度是「一个字」：按钮放在 flex 行里被挤压时，浏览器会一路缩到
    一字宽，文字就逐字竖排堆起来。nowrap 让 min-content 变成整段文字宽度，收缩到此为止；
    flex-shrink:0 再兜一层，宁可撑宽容器（表格走 .card-body 的横向滚动）也不压扁按钮。 */
-.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 12px;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:500;cursor:pointer;background:var(--ds-background-100);color:var(--fg);box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);transition:all var(--motion-fast);white-space:nowrap;flex-shrink:0}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:32px;padding:0 16px;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:500;cursor:pointer;background:var(--ds-background-100);color:var(--fg);box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);transition:all var(--motion-fast);white-space:nowrap;flex-shrink:0}
 .btn:hover{background:var(--ds-gray-100)}
 .btn:active{background:var(--ds-gray-200)}
 /* 主按钮 = 反色（浅色下近黑底白字、深色下近白底黑字）：两种主题里都保持最高对比度 */
@@ -177,7 +177,7 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed}
 .btn-primary:active{background:var(--ds-gray-800)}
 .btn-danger{color:var(--red)}
 .btn-danger:hover{background:var(--ds-red-100)}
-.btn-sm{height:26px;padding:0 9px;font-size:12px}
+.btn-sm{height:26px;padding:0 8px;font-size:12px}
 /* .btn-ghost 在共享层（两个外壳都用它） */
 /* 原生 <input type="file"> 的按钮部分是浏览器内部控件（::file-selector-button），
    套不上 .btn 的圆角/字重/hover，各浏览器渲染还互不一致。改为隐藏原生 input、
@@ -190,7 +190,7 @@ input[type=checkbox]:disabled{opacity:.45;cursor:not-allowed}
 /* ---------- Tables ---------- */
 table{width:100%;border-collapse:collapse;font-size:14px}
 th{text-align:left;padding:8px 16px;font-size:12px;font-weight:500;color:var(--fg2);border-bottom:1px solid var(--line);white-space:nowrap}
-td{padding:10px 16px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
+td{padding:8px 16px;border-bottom:1px solid var(--line-soft);vertical-align:middle}
 tbody tr:last-child td{border-bottom:none}
 tbody tr:hover{background:var(--soft)}
 /* 停用行只压淡内容列：整行 opacity 会让操作按钮也变淡，看起来像被禁用实际却能点 */
@@ -209,8 +209,8 @@ td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:now
 .col-dot{width:1%;white-space:nowrap;text-align:center}
 /* 长文本单行省略：宽度统一在这里，不再各页各写一串 overflow/ellipsis（且宽度互不相同） */
 .ellip{max-width:320px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-table th:first-child,table td:first-child{padding-left:20px}
-table th:last-child,table td:last-child{padding-right:20px}
+table th:first-child,table td:first-child{padding-left:24px}
+table th:last-child,table td:last-child{padding-right:24px}
 /* 表格里的操作按钮强制单行：列宽不足时整列撑开并横向滚动，而不是把最后一个按钮挤到下一行 */
 td .acts{flex-wrap:nowrap}
 .card-body{overflow-x:auto}
@@ -227,44 +227,44 @@ td .acts{flex-wrap:nowrap}
 .dot-def{background:var(--blue)}
 .dot-admin{background:var(--violet)}
 .dot-user{background:var(--faint)}
-.dot-cell{display:inline-flex;align-items:center;gap:6px}
+.dot-cell{display:inline-flex;align-items:center;gap:8px}
 /* 状态圆点图例：表格里的状态列只有圆点、不带文字，含义统一挪到卡片头说明。
    不同类别的图例各占一行（如激活码的「重复激活」与「状态」两组），所以外层用纵向 flex；
    图例里的圆点只是色样，不该带悬停手势，光标统一成默认 */
 .dot-legend{display:flex;flex-direction:column;gap:4px;margin-top:8px;font-size:12px;color:var(--fg2)}
-.dot-legend .lg-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px}
+.dot-legend .lg-row{display:flex;flex-wrap:wrap;align-items:center;gap:4px 16px}
 .dot-legend .lg-row>em{font-style:normal;color:var(--fg3)}
-.dot-legend .lg-item{display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.dot-legend .lg-item{display:inline-flex;align-items:center;gap:4px;white-space:nowrap}
 .dot-legend .dot{cursor:default}
 /* 状态码图例：日志表里状态码是彩色文本（不是圆点），图例也跟着用彩色等宽文本，与表格所见一致 */
-.lgd-code{font-family:var(--mono);font-size:12px;font-weight:500;margin-right:12px;white-space:nowrap}
+.lgd-code{font-family:var(--mono);font-size:12px;font-weight:500;margin-right:16px;white-space:nowrap}
 /* ---------- 状态文字 ---------- */
 /* 颜色语义一律交给 ::before 的圆点，文字保持中性灰：同一行出现两种颜色语义会互相打架。
    圆点必须用伪元素：插件/路由开关会覆写 .badge 的 className 与 textContent，
    往里插 <i class="dot"> 会在开关一次之后被 textContent 抹掉。 */
-.badge{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:400;line-height:16px;white-space:nowrap;flex-shrink:0;color:var(--fg2)}
+.badge{display:inline-flex;align-items:center;gap:8px;font-size:12px;font-weight:400;line-height:16px;white-space:nowrap;flex-shrink:0;color:var(--fg2)}
 .badge::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--fg3);flex-shrink:0}
 .badge-on::before{background:var(--blue)}
 .badge-off::before{background:var(--fg3)}
 .badge-warn::before{background:var(--orange)}
 .badge-error::before{background:var(--red)}
 .badge-custom::before{background:var(--violet)}
-.tag{display:inline-flex;align-items:center;padding:1px 9px;border-radius:9999px;font-size:12px;background:var(--soft);color:var(--fg2);margin:2px;cursor:pointer;border:none;transition:all .15s;white-space:nowrap;flex-shrink:0}
+.tag{display:inline-flex;align-items:center;padding:1px 8px;border-radius:9999px;font-size:12px;background:var(--soft);color:var(--fg2);margin:4px;cursor:pointer;border:none;transition:all .15s;white-space:nowrap;flex-shrink:0}
 /* .tag.active 表示「该参数已被禁止」：用琥珀（警示）而非绿色（成功），否则语义正好反了 */
 .tag.active{background:var(--orange-soft);color:var(--orange-deep);box-shadow:inset 0 0 0 1px var(--ds-amber-600)}
 .mono{font-family:var(--mono);font-size:12px;word-break:break-all}
 /* ---------- Sub tabs ---------- */
-.subtabs{display:flex;gap:6px;flex-wrap:wrap}
-.stab{display:inline-flex;align-items:center;gap:6px;height:32px;padding:0 14px;border-radius:64px;font-size:14px;font-weight:500;color:var(--fg2);cursor:pointer;box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);transition:all var(--motion-fast);background:var(--ds-background-100);white-space:nowrap;flex-shrink:0}
+.subtabs{display:flex;gap:8px;flex-wrap:wrap}
+.stab{display:inline-flex;align-items:center;gap:8px;height:32px;padding:0 16px;border-radius:64px;font-size:14px;font-weight:500;color:var(--fg2);cursor:pointer;box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);transition:all var(--motion-fast);background:var(--ds-background-100);white-space:nowrap;flex-shrink:0}
 .stab:hover{color:var(--fg);background:var(--ds-gray-100)}
 .stab.on{background:var(--ds-gray-1000);color:var(--ds-background-100);box-shadow:inset 0 0 0 1px var(--ds-gray-1000)}
 .stab .cnt{font-size:11px;opacity:.7}
 /* ---------- Misc ---------- */
-.empty{text-align:center;padding:36px 0;color:var(--fg3);font-size:14px}
+.empty{text-align:center;padding:40px 0;color:var(--fg3);font-size:14px}
 .flex{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 .share{height:4px;border-radius:2px;background:var(--track);overflow:hidden;margin-top:4px;max-width:160px}
 .share>div{height:100%;background:var(--fg);border-radius:2px}
-.stat-line{font-size:12px;margin-bottom:12px}
+.stat-line{font-size:12px;margin-bottom:16px}
 /* 可点单元格：整格可点并给 hover 反馈，否则用户看不出这里能点开 */
 .lnk{cursor:pointer}
 .lnk:hover{color:var(--blue)}
@@ -281,7 +281,7 @@ td .acts{flex-wrap:nowrap}
 .ovhero{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
 /* 预览那一栏不铺底色：缩略图本身就是一张带阴影的白卡，再垫一层灰底会在它上下各留一块灰块。
    只保留右边界这条线把两栏分开 */
-.ovshot{display:flex;align-items:center;justify-content:center;padding:20px;border-right:1px solid var(--line)}
+.ovshot{display:flex;align-items:center;justify-content:center;padding:24px;border-right:1px solid var(--line)}
 /* Vercel 部署页那套「等比截图框」——固定 640/400 比例、圆角裁切，
    1px 内描边走 ::after 的 inset ring（不用 border，圆角处才不会露出直角） */
 .ovshot-frame{position:relative;display:block;width:100%;max-width:460px;aspect-ratio:640/400;border-radius:var(--r-md);overflow:hidden;background:var(--ds-background-100);box-shadow:var(--ds-shadow-large);transition:transform var(--motion-pop),box-shadow var(--motion-pop)}
@@ -290,20 +290,20 @@ td .acts{flex-wrap:nowrap}
 .ovshot-frame:focus-visible{outline:none;box-shadow:var(--ds-shadow-xl),var(--ds-focus-ring)}
 /* 画布内部分辨率是显示尺寸的 2 倍，缩到框宽后边缘不发虚 */
 .ovshot-frame canvas{display:block;width:100%;height:100%}
-.ovinfo{display:flex;flex-direction:column;gap:16px;padding:20px}
+.ovinfo{display:flex;flex-direction:column;gap:16px;padding:24px}
 /* KPI 组与上面的定义栅格之间用细分隔线分段 */
 .ovinfo-kpi{padding-top:16px;border-top:1px solid var(--line-soft)}
 /* 定义栅格：小号灰标签在上、值在下（参考图的「属性表」观感），概览页所有数值都走这一套 */
 .def-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px 24px}
-.def-k{font-size:12px;color:var(--fg2);margin-bottom:6px}
+.def-k{font-size:12px;color:var(--fg2);margin-bottom:8px}
 .def-v{font-size:14px;font-weight:500;word-break:break-word}
-.def-v.big{font-size:28px;font-weight:600;letter-spacing:-1.12px;line-height:1.1;font-variant-numeric:tabular-nums}
+.def-v.big{font-size:32px;font-weight:600;letter-spacing:-1.28px;line-height:1.1;font-variant-numeric:tabular-nums}
 .def-v.red{color:var(--red)}
 .def-grid.kpi .def-v{font-size:20px;font-variant-numeric:tabular-nums}
 /* 下卡上排：左健康度 + 右定义栅格；底部那组 KPI 与它之间的分隔线由 .ovlow 的下边框给出 */
 .ovlow{display:grid;grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr);gap:24px;align-items:center;padding-bottom:16px;margin-bottom:16px;border-bottom:1px solid var(--line-soft)}
 /* ---------- 健康度：只给评分与等级，不展开逐项明细 ---------- */
-.health-score{display:flex;align-items:center;gap:18px}
+.health-score{display:flex;align-items:center;gap:16px}
 /* 大号数字用 ink：48px 的蓝会看起来像可点的链接，这里只是评分 */
 .hs-num{font-size:48px;font-weight:600;letter-spacing:-2.4px;line-height:1;font-variant-numeric:tabular-nums;color:var(--fg)}
 .hs-num.warn{color:var(--orange-deep)}
@@ -311,72 +311,72 @@ td .acts{flex-wrap:nowrap}
 .hs-grade{font-size:14px;font-weight:600}
 .hs-note{font-size:12px;color:var(--fg2);margin-top:4px}
 /* ---------- 运行信息 ---------- */
-.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px 24px}
-.info-item{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:8px 0;border-bottom:1px solid var(--line-soft);font-size:14px}
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px 24px}
+.info-item{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:8px 0;border-bottom:1px solid var(--line-soft);font-size:14px}
 .info-item .ik{color:var(--fg2);font-size:12px;white-space:nowrap}
 .info-item .iv{font-weight:500;text-align:right;font-variant-numeric:tabular-nums;word-break:break-all}
 /* ---------- 批量操作条 ---------- */
-.batchbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:9px 14px;margin-bottom:12px;border-radius:var(--r-sm);background:var(--ds-blue-100);box-shadow:inset 0 0 0 1px var(--ds-blue-300);font-size:14px}
+.batchbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:8px 16px;margin-bottom:16px;border-radius:var(--r-sm);background:var(--ds-blue-100);box-shadow:inset 0 0 0 1px var(--ds-blue-300);font-size:14px}
 .batchbar .cnt{font-weight:600}
 .batchbar .sp{flex:1}
 /* ---------- Expand rows ---------- */
 .expander{display:inline-block;width:16px;cursor:pointer;color:var(--fg2);font-family:var(--mono);text-align:center;user-select:none}
 .expander:hover{color:var(--fg)}
 .detail-row>td{padding:0!important;border-bottom:none!important;background:var(--soft)}
-/* 展开明细：左边距 20px 让路径与父表插件列文字对齐，右边距 0 让末列与父表末列对齐 */
-.detail-row table{background:var(--ds-background-100);border-radius:6px;margin:6px 0 10px 20px;width:calc(100% - 20px)}
+/* 展开明细：左边距 24px 让路径与父表插件列文字对齐，右边距 0 让末列与父表末列对齐 */
+.detail-row table{background:var(--ds-background-100);border-radius:6px;margin:8px 0 8px 24px;width:calc(100% - 24px)}
 /* 固定列宽，父表与展开子表的数值列才能上下对齐 */
 .stat-table{table-layout:fixed}
 /* ---------- 站内信 ---------- */
 /* 概览页的站内信卡片与用户控制台的站内信卡片渲染的是同一种条目，这一组取值必须与
    other_pages.py 里那份逐字相同：底色/圆角/正文字号一旦分头改动，同一条消息在两个
    界面里就长得不一样了 */
-.ann-list{display:flex;flex-direction:column;gap:10px}
-.ann-item{padding:12px 14px;border-radius:var(--r-sm);background:var(--soft);box-shadow:var(--ring)}
+.ann-list{display:flex;flex-direction:column;gap:16px}
+.ann-item{padding:16px;border-radius:var(--r-sm);background:var(--soft);box-shadow:var(--ring)}
 .ann-item .h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .ann-item .h b{font-size:14px;font-weight:600}
 .ann-item .h .sp{flex:1}
-.ann-item .body{font-size:14px;color:var(--fg2);margin-top:6px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.ann-item .body{font-size:14px;color:var(--fg2);margin-top:8px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
 .ann-item .meta{font-size:12px;color:var(--fg3);white-space:nowrap}
 /* meta 的两种落位：概览页把它放在正文下方独立一行，控制台把它塞进标题行右侧。
    用子选择器区分，避免同一个 .meta 在两种结构里互相带上对方的边距 */
-.ann-item>.meta{margin-top:8px;display:flex;gap:10px;flex-wrap:wrap}
+.ann-item>.meta{margin-top:8px;display:flex;gap:16px;flex-wrap:wrap}
 .ann-item .h .meta{margin-left:auto}
-.ann-scope{padding:3px 10px;border-radius:9999px;font-size:12px;box-shadow:0 0 0 1px var(--line);color:var(--fg2)}
+.ann-scope{padding:3px 8px;border-radius:9999px;font-size:12px;box-shadow:0 0 0 1px var(--line);color:var(--fg2)}
 /* 站内信主页的触发卡：只有一个只读输入框和一个「新建」按钮，点任一处都开弹窗填写。
    输入框只作触发与示意（真正的内容在弹窗里录入），因此换成手型光标；
    flex 项不写宽度会被压成浏览器默认宽度，flex:1 + min-width:0 让它随卡片宽度伸缩 */
-.ann-new{display:flex;gap:10px}
+.ann-new{display:flex;gap:16px}
 .ann-new .input{flex:1;min-width:0;cursor:pointer}
 /* 历次发送表格里的内容缩略：限宽 + 灰字，避免长正文把表格撑变形 */
 .ann-excerpt{max-width:420px;color:var(--fg2)}
 /* 可见范围勾选组 */
-.ck-row{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 8px}
-/* margin/font-weight 必须显式归零：共享层 .modal label 的 `margin:12px 0 5px`（同为 0,1,1
+.ck-row{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+/* margin/font-weight 必须显式归零：共享层 .modal label 的 `margin:16px 0 8px`（同为 0,1,1
    特异性、源序在前）会漏到这里的胶囊标签上，把 8px 的 flex 间距顶成参差不齐的行距 */
-.ck-row label{display:inline-flex;align-items:center;gap:6px;margin:0;font-weight:400;padding:4px 10px;border-radius:9999px;box-shadow:0 0 0 1px var(--line);font-size:12px;cursor:pointer;color:var(--fg2)}
+.ck-row label{display:inline-flex;align-items:center;gap:8px;margin:0;font-weight:400;padding:4px 8px;border-radius:9999px;box-shadow:0 0 0 1px var(--line);font-size:12px;cursor:pointer;color:var(--fg2)}
 /* 平铺的「复选框 / 单选 + 文字」行（与上面 .ck-row 的胶囊样式相对）。
    **不要**写成 <label class="flex">：共享层的 .modal label{display:block}（特异性 0,1,1）
    比 .flex（0,1,0）更具体，display:flex 被压掉后 gap 一并失效，而 input[type=checkbox]
    的 margin 又是 0，复选框就会与文字贴死——这正是「新增用户组里复选框没间距」的成因。
    复选框与文字之间的间距只在这条规则里出一次，禁止在 JS 里写内联 gap/margin 去补 */
-.ck-list{display:flex;flex-wrap:wrap;gap:10px 16px;margin:10px 0 8px}
-.ck-list>label{display:inline-flex;align-items:center;gap:6px;margin:0;font-weight:400;font-size:13px;cursor:pointer}
+.ck-list{display:flex;flex-wrap:wrap;gap:8px 16px;margin:8px 0}
+.ck-list>label{display:inline-flex;align-items:center;gap:8px;margin:0;font-weight:400;font-size:14px;cursor:pointer}
 /* 分页勾选这类成列排的选项：定宽让它们上下对齐成列，比自然流更易扫读 */
 .ck-list.cols>label{min-width:92px}
 /* ---------- Chart ---------- */
 .chart-box{padding:8px 4px 0}
-.chart{display:flex;align-items:flex-end;gap:3px;height:150px}
+.chart{display:flex;align-items:flex-end;gap:4px;height:150px}
 .bar-col{flex:1;height:100%;display:flex;align-items:flex-end;min-width:4px;cursor:default}
 .bar{width:100%;background:var(--ds-gray-alpha-500);border-radius:2px 2px 0 0;position:relative;overflow:hidden;min-height:2px;transition:background var(--motion-fast)}
 .bar-col:hover .bar{background:var(--fg)}
 .bar-err{position:absolute;bottom:0;left:0;width:100%;background:var(--red)}
-.chart-x{display:flex;gap:3px;padding:6px 4px 0}
-.chart-x span{flex:1;min-width:4px;font-size:10px;font-family:var(--mono);color:var(--fg3);text-align:center;overflow:hidden;white-space:nowrap}
+.chart-x{display:flex;gap:4px;padding:8px 4px 0}
+.chart-x span{flex:1;min-width:4px;font-size:11px;font-family:var(--mono);color:var(--fg3);text-align:center;overflow:hidden;white-space:nowrap}
 .stackbar{display:flex;height:10px;border-radius:5px;overflow:hidden;background:var(--track)}
 .stackbar>div{height:100%}
-.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--fg2)}
-.legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:5px}
+.legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--fg2)}
+.legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px}
 /* ---------- 开关 ---------- */
 .sw{display:inline-flex;align-items:center;gap:8px;cursor:pointer;user-select:none;font-size:12px;color:var(--fg2);white-space:nowrap}
 .sw-track{width:34px;height:20px;border-radius:9999px;background:var(--track);position:relative;transition:background var(--motion-pop);flex-shrink:0}
@@ -389,8 +389,8 @@ td .acts{flex-wrap:nowrap}
 .sw.sm .sw-track::after{width:14px;height:14px}
 .sw.sm.on .sw-track::after{transform:translateX(12px)}
 /* ---------- 操作列 ---------- */
-.acts{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:flex-end}
-.acts .sep{width:1px;height:18px;background:var(--line);margin:0 2px;flex-shrink:0}
+.acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.acts .sep{width:1px;height:18px;background:var(--line);margin:0 4px;flex-shrink:0}
 /* 卡片头右侧的状态行（如备份页「最近备份 / 自动备份」）里也用 .sep 分段：
    这里是行内文本，.sep 必须转成行内块，高度也收到文字高度，否则把行撑高 */
 .acts .dim .sep{display:inline-block;vertical-align:middle;height:12px;margin:0 8px}
@@ -402,23 +402,23 @@ td .acts{flex-wrap:nowrap}
 .cfg-val{max-width:340px}
 /* 「插件配置」弹窗里配置项的说明：挂在可读名下方单独一行（父级 label 是 block，
    这里必须自己也 block，否则会接在名字同一行）；显示名与说明都来自插件自报，不是键名 */
-.pcfg-desc{display:block;font-weight:400;font-size:12px;color:var(--fg3);margin-top:2px}
+.pcfg-desc{display:block;font-weight:400;font-size:12px;color:var(--fg3);margin-top:4px}
 /* 字典 / 数组配置项在行内只放只读预览：单行省略，完整内容看悬停提示，编辑在弹窗里做 */
 .pcfg-json{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--fg3)}
 /* JSON 编辑弹窗的文本框与提示行：间距只在这里给一份，不在标记里写内联样式。
    选择器必须带 .modal> 前缀：上面那条 `.modal>.input{width:100%}` 是 (0,2,0)，
    单写 .json-edit 的 (0,1,0) 压不住它，height / min-height 会被 .input 的行高约束吃掉 */
-.modal>textarea.json-edit{width:100%;height:auto;min-height:200px;padding:8px 10px;line-height:1.6;resize:vertical}
-.json-edit-hint{margin-top:6px}
+.modal>textarea.json-edit{width:100%;height:auto;min-height:200px;padding:8px 16px;line-height:1.6;resize:vertical}
+.json-edit-hint{margin-top:8px}
 .cfg-group{margin-bottom:16px;border-radius:var(--r-md);box-shadow:var(--ring);overflow:hidden;background:var(--ds-background-100)}
 .cfg-group:last-child{margin-bottom:0}
-.cfg-group-h{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;padding:11px 16px;background:var(--soft);border-bottom:1px solid var(--line)}
+.cfg-group-h{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:600;padding:16px;background:var(--soft);border-bottom:1px solid var(--line)}
 .cfg-group table th:first-child,.cfg-group table td:first-child{padding-left:16px}
 .cfg-group table th:last-child,.cfg-group table td:last-child{padding-right:16px}
 /* 分页条样式在共享层（.pager）：用户控制台同样用它，不能只放在面板 CSS 里 */
 /* ---------- 测试 ---------- */
-.test-form{display:flex;gap:14px;flex-wrap:wrap;align-items:flex-end}
-.test-field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.test-form{display:flex;gap:16px;flex-wrap:wrap;align-items:flex-end}
+.test-field{display:flex;flex-direction:column;gap:4px;min-width:0}
 .test-field>span{font-size:12px;color:var(--fg2)}
 .test-field.sel{width:120px;flex:0 0 auto}
 .test-field.num{width:100px;flex:0 0 auto}
@@ -428,25 +428,25 @@ td .acts{flex-wrap:nowrap}
 /* 进入设置后整条左侧栏换成设置分类菜单（#set-menu，见 admin_js_config.renderSetMenu），
    右侧这一栏只渲染选中分类的配置表。原先散在各分页的配置卡片全部收敛到这里，
    所以这一页是所有配置项的唯一入口 */
-.set-menu{display:flex;flex-direction:column;gap:2px}
+.set-menu{display:flex;flex-direction:column;gap:4px}
 /* 分类项外观与主菜单项一致（同底、同选中态、同行高），折叠成图标条后同样只剩图标 */
-.set-item{position:relative;display:flex;align-items:center;gap:10px;min-height:36px;padding:6px 10px;border-radius:var(--r-sm);font-size:14px;font-weight:500;color:var(--fg2);cursor:pointer;transition:background var(--motion-fast),color var(--motion-fast);white-space:nowrap}
+.set-item{position:relative;display:flex;align-items:center;gap:8px;min-height:36px;padding:8px;border-radius:var(--r-sm);font-size:14px;font-weight:500;color:var(--fg2);cursor:pointer;transition:background var(--motion-fast),color var(--motion-fast);white-space:nowrap}
 .set-item:hover{color:var(--fg);background:var(--soft)}
 .set-item.on{background:var(--soft-2);color:var(--fg)}
 .set-item .cnt{margin-left:auto;font-size:11px;font-weight:400;color:var(--fg3)}
-.set-sep{height:1px;background:var(--line);margin:10px 6px}
+.set-sep{height:1px;background:var(--line);margin:8px}
 /* 右侧配置栏：原先是 .set-shell 的内右栏，现在自己就是一张卡片 */
 .set-body{min-width:0;display:flex;flex-direction:column;background:var(--ds-background-100);border-radius:var(--r-md);box-shadow:var(--card-shadow);overflow:hidden}
-.set-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:15px 20px;border-bottom:1px solid var(--line)}
-.set-head h2{font-size:15px;font-weight:600;letter-spacing:-.3px}
+.set-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:16px 24px;border-bottom:1px solid var(--line)}
+.set-head h2{font-size:16px;font-weight:600;letter-spacing:-.3px}
 .set-head .dim{white-space:nowrap}
 #set-cfg,#set-about{display:flex;flex-direction:column}
 #set-cfg[hidden],#set-about[hidden]{display:none}
 /* 关于页：版本信息与操作两组卡片，边距与配置表所在的这一栏保持一致 */
-#set-about>.card{margin:16px 20px}
-#set-about>.card:last-child{margin-bottom:20px}
+#set-about>.card{margin:16px 24px}
+#set-about>.card:last-child{margin-bottom:24px}
 .about-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-.about-note{margin-top:12px;font-size:13px;line-height:1.6}
+.about-note{margin-top:16px;font-size:12px;line-height:1.6}
 /* 折叠成图标条。只作用于宽屏：窄屏侧栏本来就是抽屉，「窄条」没有意义，
    折叠态在那边必须当作不存在，否则抽屉会被压成 56px */
 @media (min-width:901px){
@@ -469,7 +469,7 @@ td .acts{flex-wrap:nowrap}
   /* 折叠态不展开二级菜单：点击带分组的项会先把侧栏展开回来（见 switchTab） */
   .shell.folded .snav-sub,
   .shell.folded .snav-arrow{display:none}
-  .shell.folded .snav-foot{flex-direction:column;gap:8px;padding:10px 0}
+  .shell.folded .snav-foot{flex-direction:column;gap:8px;padding:16px 0}
 }
 /* 窄屏：侧边栏转为抽屉 */
 @media (max-width:900px){
@@ -488,13 +488,13 @@ td .acts{flex-wrap:nowrap}
 /* 窄屏取值与用户控制台那一份逐字对齐（other_pages.py 的同名断点）：同一个卡片在两个
    界面里必须缩成一样，否则同一块屏幕换一边看内边距就变了 */
 @media (max-width:640px){
-  main{padding:20px 14px 40px}
-  .topbar{padding:0 14px}
-  .card-header{padding:12px 14px}
-  .card-body{padding:14px}
-  th,td{padding-left:12px;padding-right:12px}
-  .set-head{padding:13px 14px}
-  #set-about>.card{margin:14px}
+  main{padding:16px 16px 40px}
+  .topbar{padding:0 16px}
+  .card-header{padding:16px}
+  .card-body{padding:16px}
+  th,td{padding-left:8px;padding-right:8px}
+  .set-head{padding:16px}
+  #set-about>.card{margin:16px}
 }
 {{ACCOUNT_CSS}}
 </style>'''
@@ -638,7 +638,7 @@ ADMIN_BODY = r'''{{THEME_INIT}}
         <div class="test-field" style="flex:1 1 260px"><span>{{T:test.path}}</span><input class="input" id="t-path" placeholder="{{T:test.path_ph}}"></div>
         <div class="test-field" style="flex:2 1 320px"><span>{{T:test.params}}</span><input class="input" id="t-params" placeholder="lat=39.9&amp;lon=116.4&amp;tz=8"></div>
       </div>
-      <div class="test-form" style="margin-top:14px">
+      <div class="test-form" style="margin-top:16px">
         <div class="test-field sel"><span>{{T:test.mode}}</span>
           <select class="input" id="t-mode" onchange="syncTestMode()">
             <option value="single">{{T:test.mode_single}}</option>
@@ -800,7 +800,7 @@ ADMIN_BODY = r'''{{THEME_INIT}}
   <div class="card">
     <div class="card-header">
       <div class="card-title"><h2>{{T:log.title}}</h2><div class="card-desc" id="log-page-info">{{T:msg.loading}}</div>
-        <div class="card-desc" style="margin-top:6px">
+        <div class="card-desc" style="margin-top:8px">
           <span class="lgd-code" style="color:var(--fg)">{{T:log.code_2xx}}</span>
           <span class="lgd-code" style="color:var(--blue-deep)">{{T:log.code_3xx}}</span>
           <span class="lgd-code" style="color:var(--orange-deep)">{{T:log.code_4xx}}</span>
@@ -911,7 +911,7 @@ ADMIN_BODY = r'''{{THEME_INIT}}
       <h3 class="sec-title">{{T:stats.status_dist}}</h3>
       <div id="stats-status"></div>
       <h3 class="sec-title">{{T:stats.rank_title}}</h3>
-      <div class="subtabs" style="margin-bottom:12px">
+      <div class="subtabs" style="margin-bottom:16px">
         <span class="stab on" data-sv="plugin" onclick="switchStatView('plugin')">{{T:stats.rank_plugin}}</span>
         <span class="stab" data-sv="account" onclick="switchStatView('account')">{{T:stats.rank_account}}</span>
       </div>
@@ -979,7 +979,7 @@ ADMIN_BODY = r'''{{THEME_INIT}}
         </span>
         <button class="btn btn-danger-solid" id="bk-restore" data-act="bk-restore" disabled>{{T:backup.restore}}</button>
       </div>
-      <p class="dim small" id="bk-file-note" style="margin-top:12px">{{T:backup.no_file}}</p>
+      <p class="dim small" id="bk-file-note" style="margin-top:16px">{{T:backup.no_file}}</p>
     </div>
   </div>
   <div class="card">

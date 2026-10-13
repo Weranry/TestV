@@ -63,9 +63,18 @@ _THEME_TOKENS_CSS = r'''
   --geist-radius:6px;
   --geist-radius-surface:12px;
   --geist-radius-fullscreen:16px;
-  --geist-space:4px;--geist-space-2x:8px;--geist-space-3x:12px;--geist-space-4x:16px;
-  --geist-space-6x:24px;--geist-space-8x:32px;
+  /* 间距刻度（8px 主节奏 + 4px 子网格，全站唯一口径）：
+     所有 margin / padding / gap 只取 4 / 8 / 16 / 24 / 32 / 40 / 48 / 64 这一档，
+     4px 仅用于组件内部微间距（图标↔文字、圆点↔标签），块级留白一律 ≥ 8px。
+     不再出现 6 / 10 / 14 / 18 / 20 / 26 这类看着差不多、堆起来就乱的中间值 */
+  --geist-space:4px;--geist-space-2x:8px;--geist-space-4x:16px;
+  --geist-space-6x:24px;--geist-space-8x:32px;--geist-space-10x:40px;
+  --geist-space-12x:48px;--geist-space-16x:64px;
   --geist-size-small:32px;--geist-size-medium:36px;--geist-size-large:40px;
+  /* 字号阶梯（相邻档位至少差 2px，层级一眼分得开）：
+     11 微标 / 12 说明 / 14 正文 / 16 卡片标题 / 20 次级大数 / 24 页面标题 / 32 KPI 主数值 / 48 健康度评分 */
+  --fs-micro:11px;--fs-sm:12px;--fs-base:14px;--fs-lg:16px;
+  --fs-xl:20px;--fs-title:24px;--fs-2xl:32px;--fs-hero:48px;
 
   /* ---------- 焦点环 / 动效 / 层级 ---------- */
   --ds-focus-color:var(--ds-blue-900);
@@ -156,8 +165,8 @@ _SHARED_UI_CSS = r'''
    同一次会话里也会出现两种粗细的条，故收口到这一处、所有页面口径一致。 */
 *{scrollbar-width:none;-ms-overflow-style:none}
 *::-webkit-scrollbar{width:0;height:0;display:none}
-.toasts{position:fixed;top:16px;right:16px;z-index:500;display:flex;flex-direction:column;gap:10px;width:340px;max-width:calc(100vw - 32px);pointer-events:none}
-.toast{display:flex;align-items:flex-start;gap:10px;padding:12px 13px;border-radius:12px;background:var(--ds-background-100);color:var(--fg,#171717);font-size:13px;line-height:1.5;box-shadow:var(--sh-2,0 0 0 1px rgba(0,0,0,.08),0 4px 8px rgba(0,0,0,.06));pointer-events:auto;animation:toastIn .22s cubic-bezier(.2,.8,.3,1)}
+.toasts{position:fixed;top:16px;right:16px;z-index:500;display:flex;flex-direction:column;gap:8px;width:340px;max-width:calc(100vw - 32px);pointer-events:none}
+.toast{display:flex;align-items:flex-start;gap:8px;padding:16px;border-radius:12px;background:var(--ds-background-100);color:var(--fg,#171717);font-size:14px;line-height:1.5;box-shadow:var(--sh-2,0 0 0 1px rgba(0,0,0,.08),0 4px 8px rgba(0,0,0,.06));pointer-events:auto;animation:toastIn .22s cubic-bezier(.2,.8,.3,1)}
 .toast.out{animation:toastOut .16s ease forwards}
 @keyframes toastIn{from{opacity:0;transform:translateX(14px) scale(.98)}to{opacity:1;transform:none}}
 @keyframes toastOut{to{opacity:0;transform:translateX(14px) scale(.98)}}
@@ -168,24 +177,31 @@ _SHARED_UI_CSS = r'''
 .toast.info .ic{background:var(--fg3,#8f8f8f)}
 .toast.warn .ic{background:var(--orange-deep,#ab570a)}
 .toast .tx{flex:1;min-width:0;word-break:break-word}
-.toast .tx b{display:block;font-weight:600;margin-bottom:2px}
-.toast .x{cursor:pointer;color:var(--fg3,#8f8f8f);font-size:15px;line-height:1;padding:0 2px;flex-shrink:0}
+.toast .tx b{display:block;font-weight:600;margin-bottom:4px}
+.toast .x{cursor:pointer;color:var(--fg3,#8f8f8f);font-size:15px;line-height:1;padding:0 4px;flex-shrink:0}
 .toast .x:hover{color:var(--fg,#171717)}
-.modal-overlay{position:fixed;inset:0;background:var(--scrim,rgba(23,23,23,.45));z-index:400;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-overlay{position:fixed;inset:0;background:var(--scrim,rgba(23,23,23,.45));z-index:400;display:flex;align-items:center;justify-content:center;padding:24px}
 /* 全项目的内容型弹窗统一一档尺寸：固定宽 960px、固定高 640px，窄 / 矮视口靠 min() 自动
-   收缩、不溢出。高度必须是 height（不是 min-height）：账号详情在 API Keys / 额度 / 用量 /
+   收缩、不溢出。高度必须是 height（不是 min-height）：账号详情在 EVkeys / 额度 / 用量 /
    设备 之间切换、各列表数据量不同，弹窗尺寸都要纹丝不动，内容超出就落在弹窗内滚动，
    绝不随内容多寡「蹦跳」。确认 / 告知框是刻意紧凑的另一档，见下方 .modal.confirm */
-.modal{display:flex;flex-direction:column;background:var(--ds-background-100);border-radius:var(--r-lg,16px);padding:28px 30px;width:min(960px,100%);height:min(640px,86vh);overflow:hidden;box-shadow:var(--sh-2,0 0 0 1px rgba(0,0,0,.08),0 4px 8px rgba(0,0,0,.06));animation:modalIn .18s ease}
+.modal{display:flex;flex-direction:column;background:var(--ds-background-100);border-radius:var(--r-lg,16px);padding:32px;width:min(960px,100%);height:min(640px,86vh);overflow:hidden;box-shadow:var(--sh-2,0 0 0 1px rgba(0,0,0,.08),0 4px 8px rgba(0,0,0,.06));animation:modalIn .18s ease}
 @keyframes modalIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
 /* 容器只为「把焦点接进弹窗」而可聚焦（tabindex=-1），不该画出焦点框 */
 .modal:focus{outline:none}
 /* 头部：标题 + 右上角 X，不参与滚动。X 因此永远钉在右上角，正文只在下方的
    .modal-body 里滚，滚动的字永远不会钻到 X 底下（不叠加、不遮挡） */
-.modal-head{flex-shrink:0;display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px;margin-bottom:16px}
-/* 确认框的图标独占一行、压住标题（原样保留），所以让它占满整行把标题挤到下一行；
-   单行间距由 head 的 gap 给出，图标自己不再留底边距 */
-.modal-head .confirm-ic{flex-basis:100%;margin-bottom:0}
+.modal-head{flex-shrink:0;display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px;margin-bottom:16px}
+/* 确认框头部：图标在标题左侧、与标题同一行，且中心对齐同一条中线（align-items:center）。
+   头部里的 h3 必须显式 margin:0——`.modal.confirm h3` 的 8px 下边距优先级更高，
+   而 flex 居中连外边距一起算，会把图标顶得比标题中心高一截。
+   X 靠 margin-left:auto 依旧钉在右上角。
+   图标是定死的正方形圆，flex-shrink:0 保证标题再长也不压扁它；
+   别给它 flex-basis/width:100% 之类「撑行」写法——那会覆盖它自己的 width，
+   把圆拉成整行宽的椭圆（之前感叹号被拉长的元凶） */
+.modal.confirm .modal-head{align-items:center}
+.modal.confirm .modal-head h3{margin:0}
+.modal-head .confirm-ic{flex-shrink:0;margin-bottom:0}
 /* 正文：整个弹窗唯一可滚动的地方，内容不足时撑满剩余高度 */
 .modal-body{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
 .modal-body>*{flex-shrink:0}
@@ -197,18 +213,18 @@ _SHARED_UI_CSS = r'''
 .modal-x:focus-visible{outline:none;box-shadow:var(--ds-focus-ring,0 0 0 2px #fff,0 0 0 4px #0070f3)}
 .modal h3{font-size:16px;font-weight:600;letter-spacing:-.4px;margin-bottom:16px}
 .modal-head h3{margin:0}
-.modal label{display:block;font-size:12px;font-weight:500;margin:14px 0 6px;color:var(--fg2,#4d4d4d)}
-.modal-actions{display:flex;gap:8px;margin-top:26px;justify-content:flex-end}
+.modal label{display:block;font-size:12px;font-weight:500;margin:16px 0 8px;color:var(--fg2,#4d4d4d)}
+.modal-actions{display:flex;gap:8px;margin-top:24px;justify-content:flex-end}
 /* 底部操作条：同样不参与滚动，永远贴在弹窗底边（正文 flex:1 把它顶到最下面） */
 .modal>.modal-actions{flex-shrink:0;margin-top:0;padding-top:24px}
 /* 确认 / 告知框：刻意紧凑的另一档——height:auto 退出上面的固定高、min-height:0 退出最小高，
    只告知一两句话却撑成 640px 的空白反而难看 */
-.modal.confirm{max-width:400px;height:auto;min-height:0;padding:22px;border-radius:var(--r-md,12px)}
-.modal.confirm h3{margin-bottom:6px}
+.modal.confirm{max-width:400px;height:auto;min-height:0;padding:24px;border-radius:var(--r-md,12px)}
+.modal.confirm h3{margin-bottom:8px}
 .modal.confirm .cd{font-size:14px;color:var(--fg2,#4d4d4d);line-height:1.6}
 /* 弹窗标题下的一句说明：抵掉 h3 的 16px 下边距，把说明拉近标题、与正文拉开 */
-.modal-sub{margin:-10px 0 14px}
-.confirm-ic{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:600;color:#fff;background:var(--blue,#0070f3);margin-bottom:12px}
+.modal-sub{margin:-8px 0 16px}
+.confirm-ic{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff;background:var(--blue,#0070f3);margin-bottom:16px}
 .modal.confirm.danger .confirm-ic{background:var(--red,#ee0000)}
 .btn-danger-solid{background:var(--red,#ee0000);color:#fff;box-shadow:0 0 0 1px var(--red,#ee0000)}
 .btn-danger-solid:hover{background:var(--red-deep,#c50000)}
@@ -225,13 +241,13 @@ _SHARED_UI_CSS = r'''
    由 .apply-row>.pw 自己撑宽，两种布局同一套标记 */
 .pw{position:relative;display:flex;align-items:center}
 .pw>.input{padding-right:48px;margin-bottom:0}
-.pw.pw-block{margin-bottom:12px}
-.pw-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:none;background:none;
-  font-family:inherit;font-size:12px;line-height:1;color:var(--fg3,#8f8f8f);cursor:pointer;padding:6px 4px;border-radius:4px}
+.pw.pw-block{margin-bottom:16px}
+.pw-eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:none;
+  font-family:inherit;font-size:12px;line-height:1;color:var(--fg3,#8f8f8f);cursor:pointer;padding:8px 4px;border-radius:4px}
 .pw-eye:hover{color:var(--fg,#171717)}
 .pw-eye:focus-visible{outline:none;box-shadow:var(--ds-focus-ring,0 0 0 2px #fff,0 0 0 4px #0070f3)}
 /* ============ 分页条（各列表共用：管理面板 + 用户控制台都注入这一份） ============ */
-.pager{justify-content:flex-end;gap:10px;margin-top:12px;flex-wrap:wrap}
+.pager{justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap}
 .pager button:disabled{opacity:.4;cursor:not-allowed}
 /* ============ 视觉隐藏（读屏可见） ============ */
 /* 状态列只有一个色点，说明原本只挂在 title 上——空元素上的 title 并不保证被播报。
@@ -639,7 +655,7 @@ document.addEventListener('DOMContentLoaded',function(){
 /* ============ 限额与配额的取值口径（面板、用户控制台共用） ============ */
 /* 0 与 -1 都是合法上限，取默认值不能写 `|| 默认`（`0||-1` 会把「禁止」变成「不限」） */
 function _intVal(v,d){var n=parseInt(v,10);return isNaN(n)?d:n}
-/* evkey 持有上限三态：-1 = 不限，0 = 该组禁止创建，N = 最多 N 个 */
+/* EVkey 持有上限三态：-1 = 不限，0 = 该组禁止创建，N = 最多 N 个 */
 function evkeyLimitText(v){
   var n=_intVal(v,null);
   if(n===null)return '-';

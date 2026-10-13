@@ -29,7 +29,7 @@
             --sans: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
             --mono: ui-monospace, SFMono-Regular, "Segoe UI Mono", Roboto Mono, Menlo, Consolas, monospace;
             --width: 420px;
-            --gap: 1.1rem;
+            --gap: 1.5rem;
             /* 让浏览器原生控件（滚动条、表单等）也跟着亮暗走，省得在深色页面上留一条白条 */
             color-scheme: light dark;
         }
@@ -108,7 +108,7 @@
             overflow: hidden;
             box-sizing: border-box;
             margin: 0 auto;
-            padding: 0 1.2rem;
+            padding: 0 1.5rem;
             flex: 1;
             display: flex;
             flex-direction: column;
@@ -118,7 +118,7 @@
         }
 
         .logo-container {
-            margin-bottom: 1.2rem;
+            margin-bottom: 1.5rem;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -128,7 +128,7 @@
             background: var(--surface);
             border-radius: 16px;
             box-shadow: var(--card-shadow);
-            padding: 18px;
+            padding: 16px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -158,7 +158,7 @@
 
         .title {
             position: relative;
-            font-size: 2.4rem;
+            font-size: 2.5rem;
             font-weight: 700;
             color: var(--fg);
             letter-spacing: -0.03em;
@@ -170,11 +170,11 @@
             top: 0;
             left: 100%;
             font-family: var(--mono);
-            font-size: 0.7rem;
+            font-size: 0.75rem;
             font-weight: 500;
             color: var(--fg2);
             background: var(--soft);
-            padding: 3px 9px;
+            padding: 2px 8px;
             border-radius: 9999px;
             letter-spacing: .06em;
             text-transform: uppercase;
@@ -182,7 +182,7 @@
         }
 
         .subtitle {
-            font-size: 0.95rem;
+            font-size: 1rem;
             color: var(--fg2);
             font-weight: 400;
             margin-bottom: var(--gap);
@@ -194,8 +194,8 @@
             display: flex;
             flex-wrap: wrap;
             justify-content: center;
-            gap: 0.7rem;
-            margin-bottom: 0.2rem;
+            gap: 1rem;
+            margin-bottom: 0;
             width: 100%;
         }
 
@@ -203,10 +203,10 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            padding: 0.55rem 1rem;
+            padding: 0.5rem 1rem;
             border-radius: 6px;
             font-weight: 500;
-            font-size: 0.95rem;
+            font-size: 1rem;
             transition: background-color 0.15s, box-shadow 0.15s;
             /* 等宽两枚：GitHub 带图标、Wiki 只有两个字，按内容排会一宽一窄对不齐，
                索性给定宽，两个都窄于原先撑满容器的样子 */
@@ -261,7 +261,7 @@
             }
 
             .subtitle {
-                font-size: 0.9rem;
+                font-size: 0.875rem;
             }
 
             .logo {
@@ -270,27 +270,27 @@
             }
 
             .logo-bg {
-                border-radius: 20px;
-                padding: 14px;
+                border-radius: 16px;
+                padding: 16px;
             }
 
             .button {
                 padding: 0.5rem 1rem;
-                font-size: 0.95rem;
+                font-size: 1rem;
             }
         }
 
         @media (max-width: 300px) {
             .container {
-                padding: 0 0.8rem;
+                padding: 0 1rem;
             }
 
             .title {
-                font-size: 1.65rem;
+                font-size: 1.5rem;
             }
 
             .subtitle {
-                font-size: 0.8rem;
+                font-size: 0.75rem;
             }
 
             .logo {
@@ -303,16 +303,16 @@
             }
 
             .button {
-                padding: 0.45rem 0.8rem;
-                font-size: 0.85rem;
+                padding: 0.5rem 1rem;
+                font-size: 0.875rem;
             }
         }
 
         svg.icon {
-            width: 18px;
-            height: 18px;
-            margin-right: 6px;
-            vertical-align: -3px;
+            width: 16px;
+            height: 16px;
+            margin-right: 8px;
+            vertical-align: -2px;
             fill: currentColor;
         }
 
@@ -323,8 +323,8 @@
             box-sizing: border-box;
             text-align: center;
             color: var(--fg3);
-            font-size: 0.85rem;
-            padding: 1.2rem 0;
+            font-size: 0.875rem;
+            padding: 1.5rem 0;
             letter-spacing: 0;
             overflow-wrap: break-word;
         }
@@ -348,13 +348,13 @@
             align-items: center;
             flex-wrap: wrap;
             justify-content: center;
-            gap: 0.3rem;
-            padding: 5px 12px;
+            gap: 0.5rem;
+            padding: 4px 16px;
             border-radius: 9999px;
             background: var(--soft);
             box-shadow: var(--ring);
             color: var(--fg2);
-            font-size: 0.85rem;
+            font-size: 0.875rem;
         }
 
         .setup-note b {

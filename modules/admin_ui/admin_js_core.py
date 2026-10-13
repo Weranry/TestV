@@ -451,8 +451,8 @@ function cfgEditJson(key,el){
     (lb.desc?'<p class="dim small modal-sub">'+esc(lb.desc)+'</p>':'')+
     '<label class="mono">'+esc(key)+'</label>'+
     '<textarea class="input mono" id="cfg-json" rows="6" autocomplete="off" spellcheck="false"'+
-    ' style="width:100%;height:auto;min-height:132px;padding:8px 10px;line-height:1.6;resize:vertical">'+esc(text)+'</textarea>'+
-    '<p class="dim small" id="cfg-json-hint" style="margin-top:6px">'+esc(hint)+'</p>'+
+    ' style="width:100%;height:auto;min-height:128px;padding:8px 16px;line-height:1.6;resize:vertical">'+esc(text)+'</textarea>'+
+    '<p class="dim small" id="cfg-json-hint" style="margin-top:8px">'+esc(hint)+'</p>'+
     '<div class="modal-actions"><button class="btn btn-primary" id="cfg-json-save">'+T('btn.save','保存')+'</button></div>';
   var m=openModal(h,'cfg-json-modal');
   var ta=m.querySelector('#cfg-json'),tip=m.querySelector('#cfg-json-hint');
