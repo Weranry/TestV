@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "python3 -B -m modules.register.explore_static 2>&1 || python -B -m modules.register.explore_static 2>&1 || echo 'explore_static: WARNING skipped (build container has no python3, or pip deps are not importable here); keeping the committed public/pages/explore.html'",
+  "buildCommand": "python3 -B -m modules.register.explore_static || python -B -m modules.register.explore_static || echo 'explore_static: WARNING skipped, keeping the committed public/pages/explore.html'",
   "rewrites": [
     { "source": "/", "destination": "/pages/index.html" },
     { "source": "/explore", "destination": "/pages/explore.html" }
