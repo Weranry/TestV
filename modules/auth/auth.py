@@ -106,14 +106,12 @@ def clear_session_cookie(response: Response):
 
 
 def _dev_user():
-    """dev 模式下使用的默认用户对象（id=1 即内置管理组的兜底主管理员）"""
+    """dev 模式下使用的默认用户对象"""
     return {
         'id': 1,
         'name': 'dev',
         'group_id': 1,
         'group_name': 'admin',
-        'group_category': 'admin',
-        'group_builtin': 1,
         'enabled': 1,
     }
 
@@ -121,18 +119,14 @@ def _dev_user():
 async def check_auth(request: Request):
     """
     鉴权流程:
-    1. 尝试验证 Session Cookie (admin 登录态) —— 只对控制台路径 /admin 生效
+    1. 尝试验证 Session Cookie (admin 登录态)
     2. dev 模式: 注入默认 dev 用户, 跳过鉴权
     3. 白名单路径免鉴权
     4. evkey 校验 (数据库用户 > 环境变量)
     """
     path = request.url.path
 
-    # 会话 Cookie 只代表「控制台登录态」，只对 /admin 前缀的控制台页面与接口生效。
-    # 内容面（/random/views、插件视图 /<插件>/view/<种类> 等）一律凭 evkey —— 否则任何
-    # 能在 /login 登录的账号（含普通用户组）只要会话没过期，就能不凭 evkey 直接拉内容。
-    console_scope = path == '/admin' or path.startswith('/admin/')
-    session_token = request.cookies.get(SESSION_COOKIE_NAME) if console_scope else None
+    session_token = request.cookies.get(SESSION_COOKIE_NAME)
     if session_token and is_db_available():
         try:
             user_id = decode_session_token(session_token)
@@ -142,7 +136,6 @@ async def check_auth(request: Request):
                     request.state.user = user
                     request.state.user_group_id = user['group_id']
                     request.state.user_group_name = user['group_name']
-                    request.state.auth_source = 'session'
                     return
         except Exception:
             pass
@@ -152,21 +145,16 @@ async def check_auth(request: Request):
             request.state.user = _dev_user()
         request.state.user_group_id = request.state.user.get('group_id', 1)
         request.state.user_group_name = request.state.user.get('group_name', 'admin')
-        request.state.auth_source = 'dev'
         return
 
     for prefix in config.AUTH_WHITELIST:
-        # 白名单按「路径段」匹配：`/admin` 只放行 `/admin` 与 `/admin/...`，不能连带放行
-        # `/adminxyz` 这类只是字符串前缀相同的路径（插件可注册任意首段路径）。
-        # '/' 只做精确匹配，否则会放行所有路径。
-        if path == prefix or (prefix != '/' and path.startswith(prefix + '/')):
+        # '/' 只做精确匹配，否则会放行所有路径
+        if path == prefix or (prefix != '/' and path.startswith(prefix)):
             return
 
-    # 只认请求头：URL 里的 evkey 会进浏览器历史、Referer 和反代访问日志，
-    # 等价于把长期凭据写进日志。旧客户端若仍拼 ?evkey=...，这里会按「缺少密钥」拒绝。
-    evkey = request.headers.get('evkey')
+    evkey = request.headers.get('evkey') or request.query_params.get('evkey')
     if not evkey:
-        raise AuthError('api.err_evkey_missing')
+        raise AuthError('缺少鉴权密钥 evkey')
 
     try:
         # Vercel 模式无数据库，直接跳过用户表查询，回落到 EVKEY 环境变量比对。
@@ -175,11 +163,10 @@ async def check_auth(request: Request):
         if is_db_available() and await asyncio.to_thread(_cached_has_users):
             user = await asyncio.to_thread(_cached_get_user, evkey)
             if user is None:
-                raise AuthError('api.err_evkey_invalid')
+                raise AuthError('无效的 evkey，用户不存在或已禁用')
             request.state.user = user
             request.state.user_group_id = user['group_id']
             request.state.user_group_name = user['group_name']
-            request.state.auth_source = 'evkey'
             return
     except AuthError:
         raise
@@ -188,14 +175,12 @@ async def check_auth(request: Request):
 
     env_key = os.environ.get('EVKEY')
     if not env_key:
-        raise AuthError('api.err_evkey_unset')
+        raise AuthError('未配置鉴权密钥 (EVKEY 环境变量或数据库用户)')
     # 定长比较：`!=` 会在第一个不同字符处短路，逐字节泄露密钥前缀信息。
     # 先编成 bytes：compare_digest 对含非 ASCII 的 str 会抛 TypeError，而请求头/查询
     # 参数的值是调用方可控的，直接比会把一次非法输入变成 500。
     if not hmac.compare_digest(evkey.encode('utf-8'), env_key.encode('utf-8')):
-        raise AuthError('api.err_evkey_invalid')
-    # 环境变量 EVKEY 同样算 evkey 来源（没有账号身份，account_id 记 NULL）
-    request.state.auth_source = 'evkey'
+        raise AuthError('鉴权失败，evkey无效')
 
 
 def _cached_has_users():

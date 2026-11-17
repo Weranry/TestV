@@ -142,6 +142,24 @@ ACCOUNT_CARDS = r'''
   </div>
 </div>
 
+<div class="card" id="mlog-card" style="display:none">
+  <div class="card-header">
+    <div class="card-title"><h2>{{T:user.membership_btn}}</h2>
+      <div class="dot-legend">
+        <div class="lg-row"><em>{{T:prerender.detail_kind}}</em>
+          <span class="lg-item" title="{{T:account.legend_admin_tip}}"><i class="dot dot-violet"></i>{{T:account.action_admin}}</span>
+          <span class="lg-item" title="{{T:account.legend_code_tip}}"><i class="dot dot-on"></i>{{T:account.action_code}}</span>
+          <span class="lg-item" title="{{T:account.legend_expire_tip}}"><i class="dot dot-off"></i>{{T:account.action_expire}}</span>
+        </div>
+      </div></div>
+    <small class="dim" id="mlog-count"></small>
+  </div>
+  <div class="card-body">
+    <div id="mlog-table"></div>
+    <div class="flex" id="mlog-bar" style="justify-content:flex-end;margin-top:16px;display:none"></div>
+  </div>
+</div>
+
 <div class="card cfg">
   <div class="card-header">
     <div class="card-title"><h2>{{T:account.perm_title}}</h2><div class="card-desc">{{T:account.perm_desc}}</div></div>
@@ -267,15 +285,15 @@ function acctTab(name){
 var _keyLimit={max:-1,current:0,pending:0};
 function keyFull(){return _keyLimit.max>=0&&_keyLimit.current+_keyLimit.pending>=_keyLimit.max}
 function keyLimitNote(){
-  var s=T('account.evkey_used','已使用 {n}',{n:_keyLimit.current});
+  var s=T('account.evkey_used','已使用 {n} 个',{n:_keyLimit.current});
   if(_keyLimit.max>0)s+=' / '+_keyLimit.max;
   else if(_keyLimit.max<0)s+=T('account.evkey_unlimited','（不限）');
-  if(_keyLimit.pending)s+=T('account.evkey_pending','（审批中 {n}）',{n:_keyLimit.pending});
+  if(_keyLimit.pending)s+=T('account.evkey_pending','（审批中 {n} 个）',{n:_keyLimit.pending});
   return s;
 }
 function keyFullMsg(){
   if(_keyLimit.max===0)return T('account.evkey_forbidden_msg','当前用户组不允许创建 EVkey，如需使用请联系管理员调整用户组配额。');
-  return T('account.evkey_limit_msg','已持有 {cur}、审批中 {pending}、上限 {max}；请先删除多余的 EVkey。',{cur:_keyLimit.current,pending:_keyLimit.pending,max:_keyLimit.max});
+  return T('account.evkey_limit_msg','已持有 {cur} 个、审批中 {pending} 个，上限 {max} 个。如需继续，请先删除多余的 EVkey。',{cur:_keyLimit.current,pending:_keyLimit.pending,max:_keyLimit.max});
 }
 /* 已发放的 EVkey 与「审批中」的申请合成一张表、统一分页：一行一种状态，翻页后不会漏看申请。
    审批中的申请也是一行：只回「已提交」四个字的话，用户回到列表里看不到任何东西，
@@ -347,7 +365,7 @@ function applyKey(btn){
     btnBusy(btn,false);
     if(r.success){
       document.getElementById('key-desc').value='';
-      if(r.evkey)showSecret(T('account.key_generated','新 EVkey 已生成'),r.evkey,T('user.evkey_generated_note','请复制并妥善保存，设备侧用它鉴权。'));
+      if(r.evkey)showSecret(T('account.key_generated','新 EVkey 已生成'),r.evkey,T('user.evkey_generated_note','请复制并妥善保存，设备侧使用该 EVkey 鉴权。'));
       else toast(r.message||T('account.key_pending_msg','申请已提交，等待管理员审核'),'success');
       loadKeys();
     }else if(r.code===400&&/上限|不允许创建/.test(r.message||'')){
@@ -429,6 +447,37 @@ function _qlogTurn(dir){
   _qlogPage=p;
   qlogRender();
 }
+/* 权限记录：8 条一页，无记录时整张卡片隐藏（表体由共享的 memberLogRows 渲染） */
+var _mlogItems=[],_mlogPage=1,_MLOG_PER=8;
+function mlogRender(){
+  var box=document.getElementById('mlog-table'),bar=document.getElementById('mlog-bar');
+  var tp=Math.max(1,Math.ceil(_mlogItems.length/_MLOG_PER));
+  if(_mlogPage>tp)_mlogPage=tp;
+  box.innerHTML=memberLogRows(_mlogItems.slice((_mlogPage-1)*_MLOG_PER,_mlogPage*_MLOG_PER));
+  document.getElementById('mlog-count').textContent=T('account.count_n','共 {n} 条',{n:_mlogItems.length});
+  if(_mlogItems.length>_MLOG_PER){
+    bar.style.display='flex';
+    bar.innerHTML='<button class="btn btn-sm" data-act="mlog-prev"'+(_mlogPage<=1?' disabled':'')+'>'+T('pager.prev','上一页')+'</button>'+
+      '<span class="dim small">'+T('account.page_of','{cur} / {total} 页',{cur:_mlogPage,total:tp})+'</span>'+
+      '<button class="btn btn-sm" data-act="mlog-next"'+(_mlogPage>=tp?' disabled':'')+'>'+T('pager.next','下一页')+'</button>';
+  }else bar.style.display='none';
+}
+function loadMembershipLogs(){
+  R.get('/admin/api/my/membership-logs?limit=100').then(function(d){
+    if(!d||d.success===false)return;
+    _mlogItems=d.items||[];
+    if(!_mlogItems.length)return;
+    document.getElementById('mlog-card').style.display='';
+    mlogRender();
+  }).catch(function(){});
+}
+function _mlogTurn(dir){
+  var tp=Math.max(1,Math.ceil(_mlogItems.length/_MLOG_PER));
+  var p=_mlogPage+dir;
+  if(p<1||p>tp)return;
+  _mlogPage=p;
+  mlogRender();
+}
 /* 实时用量：只读查询限流器的内存窗口，不消耗额度 */
 function loadQuota(){
   R.get('/admin/api/my/quota').then(function(d){
@@ -503,8 +552,6 @@ function loadMe(){
     var qs=[[T('account.rate_label','每分钟请求速率'),(g.rate_limit_per_minute>0?T('user.times','{n}',{n:g.rate_limit_per_minute}):T('user.unlimited','不限'))],
             [T('account.quota_label','请求配额'),quotaText(g)],
             [T('user.col_max_evkeys','EVkey 上限'),evkeyLimitText(g.max_evkeys)],
-            /* 设备名额：与限额判定同一口径（管理组不限、0 = 禁止绑定），已绑定台数由 /me 一并带回 */
-            [T('device.col_count','设备数 / 上限'),(d.device_count==null?'-':num(d.device_count))+' / '+devLimitText(g.max_devices)],
             [T('account.concurrent_label','最大并发渲染'),(g.max_concurrent_renders>0?g.max_concurrent_renders:T('user.unlimited','不限'))]];
     document.getElementById('quota-grid').innerHTML=qs.map(function(q){
       return '<div class="stat"><div class="k">'+esc(q[0])+'</div><div class="v">'+esc(q[1])+'</div></div>';
@@ -526,7 +573,7 @@ function loadMe(){
 }
 /* 本页全部数据。管理面板切到「我的」分页与自动刷新都调它 */
 function refreshAccount(){
-  loadMe();loadKeys();loadQuota();loadQuotaLogs();loadDevices();
+  loadMe();loadKeys();loadQuota();loadQuotaLogs();loadMembershipLogs();loadDevices();
 }
 /* 统一事件委托：动态内容不写内联 onclick。不接管 logout——各页壳自己处理登录态 */
 document.addEventListener('click',function(e){
@@ -542,6 +589,8 @@ document.addEventListener('click',function(e){
     case 'redeem':redeemCode(el);break;
     case 'qlog-prev':_qlogTurn(-1);break;
     case 'qlog-next':_qlogTurn(1);break;
+    case 'mlog-prev':_mlogTurn(-1);break;
+    case 'mlog-next':_mlogTurn(1);break;
     case 'dev-open':devOpen();break;
     case 'dev-back':devClose();break;
     case 'dev-claim':claimDevice(el);break;

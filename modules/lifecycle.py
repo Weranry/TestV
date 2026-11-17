@@ -113,28 +113,6 @@ def reload_after_restore(app):
     sweep_expirations(app)
 
 
-def reset_after_record_clear(app):
-    """清空日志与运行记录后的内存态复位（账号、用户组与配置都不动）。
-
-    统计基线、当天的账号用量、成品图内存缓存与统计页短缓存都是按旧记录算出来的：
-    不清就会在面板上继续显示清空前的数字，之后刷盘还会把旧增量写回空表。
-    """
-    app.state.request_counts = {}
-    app.state.counts_flushed = {}
-    app.state.account_usage = {}
-    app.state.account_usage_flushed = {}
-    try:
-        from modules.database.logs import clear_stats_cache
-        clear_stats_cache()
-    except Exception:
-        plog.exception('清空统计短缓存失败')
-    try:
-        from modules.prerender import memcache
-        memcache.clear()
-    except Exception:
-        plog.exception('清空成品图内存缓存失败')
-
-
 def sweep_expirations(app):
     """到期清理：激活码账号转入各自的回落组 + 销毁已过有效日期的激活码。
 
@@ -378,13 +356,6 @@ def start_flush_thread(app):
                 if is_leader(app):
                     # 激活码账号到期回落 + 过期码销毁：每轮都扫，查询只走一次过滤，开销可忽略
                     sweep_expirations(app)
-                    # 设备离线告警：阈值与 webhook 都从配置现取（面板改完下一轮生效）；
-                    # 未配置时函数内部直接返回，不查库。
-                    try:
-                        from modules.device.alerts import scan_offline_devices
-                        scan_offline_devices()
-                    except Exception:
-                        pass
             except Exception:
                 pass
             iteration += 1
@@ -399,16 +370,8 @@ def start_flush_thread(app):
                 except Exception:
                     pass
                 try:
-                    from modules.database.audit import trim_audit_logs, prune_audit_logs
+                    from modules.database.audit import trim_audit_logs
                     trim_audit_logs(config.AUDIT_LOG_MAX_ROWS)
-                    prune_audit_logs(config.AUDIT_LOG_RETENTION_DAYS)
-                except Exception:
-                    pass
-                try:
-                    # 设备遥测只按「每设备最近 N 条」裁剪过，跨设备的旧记录会一直累积；
-                    # 保留天数与请求日志同一套周期驱动，0 = 不清理
-                    from modules.device.store import prune_device_telemetry
-                    prune_device_telemetry(config.DEVICE_TELEMETRY_RETENTION_DAYS)
                 except Exception:
                     pass
                 try:
@@ -428,12 +391,6 @@ def start_flush_thread(app):
                         backup_db = db_path()
                         if backup_db:
                             cleanup_backups(backup_db)
-                except Exception:
-                    pass
-                try:
-                    # 找回密码申请单：只回收已处理且过保留期的行，待处理的一条都不动
-                    from modules.database.password_resets import purge_handled
-                    purge_handled()
                 except Exception:
                     pass
 

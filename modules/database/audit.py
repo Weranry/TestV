@@ -52,21 +52,3 @@ def trim_audit_logs(max_rows):
         'SELECT id FROM audit_logs WHERE id <= ? LIMIT ?)',
         (row['id'],),
     )
-
-
-def prune_audit_logs(days):
-    """删除超过保留期的审计日志（0 = 不按天数清理），返回删除条数。
-
-    与请求日志的保留期清理同一套分批语义：单条大 DELETE 会长时间占住全局锁。
-    """
-    try:
-        days = int(days or 0)
-    except (TypeError, ValueError):
-        return 0
-    if days <= 0 or not is_db_available():
-        return 0
-    return _delete_batched(
-        'DELETE FROM audit_logs WHERE id IN ('
-        "SELECT id FROM audit_logs WHERE timestamp < datetime('now', ?) LIMIT ?)",
-        (f'-{days} days',),
-    )

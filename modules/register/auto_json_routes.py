@@ -36,18 +36,18 @@ def register_json_routes(router, plugin_name, json_module_dir):
             except ModuleNotFoundError as e:
                 # 模块真的不存在：与视图路径 auto_view_routes 保持一致的文案
                 plog.exception(f'JSON模块 {mod_path} 不存在')
-                raise ParamError('api.err_json_missing', mod=mod_path, msg=e)
+                raise ParamError(f'JSON模块 {mod_path} 不存在: {str(e)}')
             except Exception as e:
                 # 语法错误 / 缺依赖 / 模块级异常：不能再吞成「不存在」，要带原始异常信息
                 plog.exception(f'JSON模块 {mod_path} 加载失败')
-                raise ParamError('api.err_json_load', mod=mod_path, msg=e)
+                raise ParamError(f'JSON模块 {mod_path} 加载失败: {str(e)}')
             if not hasattr(mod, 'to_json'):
-                raise ParamError('api.err_json_no_to_json', mod=mod_path)
+                raise ParamError(f'JSON模块 {mod_path} 未实现 to_json')
 
             try:
                 result = mod.to_json(**params)
             except Exception as e:
-                raise ParamError('api.err_json_failed', msg=e)
+                raise ParamError(f'JSON数据生成失败: {str(e)}')
             return JSONResponse(content=result)
 
         endpoint_name = f'json_{plugin_name}_{json_name}'

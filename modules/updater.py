@@ -8,7 +8,6 @@
 所有函数都是同步阻塞的（git / pip 都是外部进程），调用方负责放进 worker 线程。
 """
 import os
-import re
 import subprocess
 import sys
 import tempfile
@@ -26,6 +25,8 @@ FRAMEWORK_PATHS = (
     'requirements.txt',
     'requirements-local.txt',
     'public',
+    'deploy',
+    '.trae/wiki',
 )
 
 # 依赖清单：requirements-local.txt 里有一行 `-r requirements.txt`，装上它就同时覆盖两者。
@@ -36,36 +37,6 @@ _REQUIREMENTS_CANDIDATES = ('requirements-local.txt', 'requirements.txt')
 _FETCH_TIMEOUT = 120
 _GIT_TIMEOUT = 30
 _PIP_TIMEOUT = 900
-
-# 分支名白名单：只允许 git 分支名里的常规字符。`git fetch` / `git checkout` 会把以 `-`
-# 开头的参数当成选项，`..` 还能构造 rev 区间，所以这两个形态单独排除。
-_BRANCH_RE = re.compile(r'^[A-Za-z0-9._/\-]+$')
-
-
-def list_remotes(root=None):
-    """当前仓库已配置的 git remote 名（取不到时返回空列表）"""
-    code, out, _ = _run_git(root or project_root(), ['remote'])
-    if code != 0:
-        return []
-    return [line.strip() for line in out.splitlines() if line.strip()]
-
-
-def validate_update_target(remote, branch, root=None):
-    """校验更新目标；返回错误文案（None = 通过）。
-
-    `remote` 只接受 `git remote` 里真实存在的名字：git 命令本身也接受 URL，直接拼进
-    `git fetch` 就能让服务端向任意远端发起连接。`branch` 为空表示沿用当前分支（由
-    `current_branch()` 从本地 ref 解析，属可信来源），非空时必须是合法分支名。
-    """
-    remotes = list_remotes(root)
-    if not remote or remote not in remotes:
-        return f'远端 {remote!r} 不在 git remote 列表中'
-    if branch:
-        if (not _BRANCH_RE.match(branch)
-                or branch.startswith('-')
-                or '..' in branch):
-            return f'分支名 {branch!r} 不合法'
-    return None
 
 
 def project_root():
@@ -132,13 +103,6 @@ def check_update(root=None, remote='origin', branch=''):
     if not branch:
         return _result(reason='no_branch')
 
-    # 更新目标必须来自可信白名单：remote 只能是已配置的 git remote，branch 只能是合法分支名。
-    # 否则请求体里的 `remote` 可以是任意 URL，`branch` 还能伪造 git 选项。
-    problem = validate_update_target(remote, branch, root)
-    if problem:
-        return _result(reason='invalid_target', detail=problem,
-                       branch=branch, remote=remote)
-
     code, _out, err = _run_git(root, ['fetch', '--prune', remote, branch], timeout=_FETCH_TIMEOUT)
     if code == -1:
         return _result(reason='git_missing', branch=branch, remote=remote)
@@ -188,20 +152,6 @@ def _requirements_changed(changed):
     return [name for name in _REQUIREMENTS_CANDIDATES if name in changed]
 
 
-def _present_paths(root, ref):
-    """远端这棵树里真实存在的白名单路径。
-
-    `git checkout <ref> -- <paths>` 只要有一个 pathspec 匹配不到就整条命令失败、工作区
-    一个文件都不改。仓库里删掉某个白名单目录后，更新就会变成这种「假失败」——所以先探
-    一遍 `ls-tree`，只 checkout 远端确实有的那些路径。
-    """
-    code, out, _ = _run_git(root, ['ls-tree', ref, '--'] + list(FRAMEWORK_PATHS))
-    if code != 0:
-        return list(FRAMEWORK_PATHS)
-    present = {line.rsplit('\t', 1)[-1].strip() for line in out.splitlines() if line.strip()}
-    return [path for path in FRAMEWORK_PATHS if path in present]
-
-
 def _install_requirements(root, ref, names):
     """按**远端版本**的依赖清单装依赖，语义是「先保证依赖装得上，再换代码」。
 
@@ -248,7 +198,7 @@ def apply_update(root=None, remote='origin', branch='', download_only=False):
     """
     root = root or project_root()
     info = check_update(root, remote=remote, branch=branch)
-    if info['reason'] in ('not_git', 'git_missing', 'no_branch', 'invalid_target'):
+    if info['reason'] in ('not_git', 'git_missing', 'no_branch'):
         return _apply_result(info, success=False)
     if info['reason'] == 'fetch_failed':
         return _apply_result(info, success=False)
@@ -267,13 +217,9 @@ def apply_update(root=None, remote='origin', branch='', download_only=False):
             return _apply_result(info, success=False, reason='pip_failed', detail=err)
 
     # 只覆盖白名单路径：`git checkout <ref> -- <paths>` 把远端那棵树里这些路径的内容
-    # 写进工作区，其余文件（plugins/、data/、使用方自己的改动）原样不动。
-    # 先过滤出远端真实存在的路径：checkout 碰到任何一个不存在的 pathspec 就会整条失败
-    paths = _present_paths(root, ref)
-    if not paths:
-        return _apply_result(info, success=False, reason='checkout_failed',
-                             detail='远端没有可更新的框架路径')
-    code, _out, err = _run_git(root, ['checkout', ref, '--'] + paths, timeout=_FETCH_TIMEOUT)
+    # 写进工作区，其余文件（plugins/、data/、使用方自己的改动）原样不动
+    code, _out, err = _run_git(
+        root, ['checkout', ref, '--'] + list(FRAMEWORK_PATHS), timeout=_FETCH_TIMEOUT)
     if code != 0:
         return _apply_result(info, success=False, reason='checkout_failed', detail=err)
 

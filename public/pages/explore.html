@@ -181,19 +181,12 @@
 .toast .tx b{display:block;font-weight:600;margin-bottom:4px}
 .toast .x{cursor:pointer;color:var(--fg3,#8f8f8f);font-size:15px;line-height:1;padding:0 4px;flex-shrink:0}
 .toast .x:hover{color:var(--fg,#171717)}
-/* 遮罩层：变暗底色 + 8px 高斯模糊。模糊统一挂在这一处——所有弹窗（内容弹窗、确认框、
-   告知框）都走同一个 .modal-overlay，改一次即全站生效。变暗与模糊叠加：浅色下压暗页面、
-   深色下页面本来就黑，模糊把背后的内容虚化开，弹窗自然成为唯一焦点 */
-.modal-overlay{position:fixed;inset:0;background:var(--scrim,rgba(23,23,23,.45));-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);z-index:400;display:flex;align-items:center;justify-content:center;padding:24px;overscroll-behavior:contain}
-/* 弹窗打开期间锁住背后的页面：遮罩是 fixed 层，弹窗内容滚到边界后滚动链会传给
-   document，表现为「弹窗不滚、背景在滚」。模态框在 body 下的增删由 shared.ui.js
-   ／MutationObserver 统一维护，覆盖 X / 遮罩 / Esc / 各页直接 remove 所有关闭路径 */
-body.modal-open{overflow:hidden}
+.modal-overlay{position:fixed;inset:0;background:var(--scrim,rgba(23,23,23,.45));z-index:400;display:flex;align-items:center;justify-content:center;padding:24px}
 /* 全项目的内容型弹窗统一一档尺寸：固定宽 960px、固定高 640px，窄 / 矮视口靠 min() 自动
    收缩、不溢出。高度必须是 height（不是 min-height）：账号详情在 EVkeys / 额度 / 用量 /
    设备 之间切换、各列表数据量不同，弹窗尺寸都要纹丝不动，内容超出就落在弹窗内滚动，
    绝不随内容多寡「蹦跳」。确认 / 告知框是刻意紧凑的另一档，见下方 .modal.confirm */
-.modal{display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:var(--ds-background-100);border-radius:var(--r-lg,16px);padding:32px;width:min(960px,100%);height:min(640px,86vh);overflow:hidden;box-shadow:var(--sh-2,0 0 0 1px rgba(0,0,0,.08),0 4px 8px rgba(0,0,0,.06));animation:modalIn .18s ease}
+.modal{display:flex;flex-direction:column;background:var(--ds-background-100);border-radius:var(--r-lg,16px);padding:32px;width:min(960px,100%);height:min(640px,86vh);overflow:hidden;box-shadow:var(--sh-2,0 0 0 1px rgba(0,0,0,.08),0 4px 8px rgba(0,0,0,.06));animation:modalIn .18s ease}
 @keyframes modalIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
 /* 容器只为「把焦点接进弹窗」而可聚焦（tabindex=-1），不该画出焦点框 */
 .modal:focus{outline:none}
@@ -210,12 +203,9 @@ body.modal-open{overflow:hidden}
 .modal.confirm .modal-head{align-items:center}
 .modal.confirm .modal-head h3{margin:0}
 .modal-head .confirm-ic{flex-shrink:0;margin-bottom:0}
-/* 正文：整个弹窗唯一可滚动的地方，内容不足时撑满剩余高度。
-   overflow-y:auto 会让 overflow-x 一并算成 auto（规范：一轴非 visible、另一轴 visible
-   时后者取 auto），于是滚动框会把输入框的 focus 外发光在左右两侧贴边裁掉。
-   这里留 4px（发光外圈宽度）内边距、再用等量负外边距抵消回去：内容位置分毫不动，
-   外圈有地方画，不再被挡 */
-.modal-body{min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;grid-template-columns:minmax(0,1fr);align-content:start;margin:-4px;padding:4px}
+/* 正文：整个弹窗唯一可滚动的地方，内容不足时撑满剩余高度 */
+.modal-body{flex:1;min-height:0;overflow-y:auto;display:flex;flex-direction:column}
+.modal-body>*{flex-shrink:0}
 /* 正文首行就是副标题时，别让它自己的负外边距把首行顶出滚动区 */
 .modal-body>.modal-sub:first-child{margin-top:0}
 /* 右上角 X：所有弹窗统一的关闭入口（openModal 注入，页面各自的 HTML 不再写关闭按钮） */
@@ -260,129 +250,82 @@ body.modal-open{overflow:hidden}
 /* ============ 分页条（各列表共用：管理面板 + 用户控制台都注入这一份） ============ */
 .pager{justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap}
 .pager button:disabled{opacity:.4;cursor:not-allowed}
-/* 页码信息占固定宽度：页数/总数位数变化时，「首页 / 上一页 / 下一页 / 末页」不会左右跳；
-   tabular-nums 让数字本身等宽，翻页过程中文字不抖 */
-.pager .pg-info{display:inline-flex;align-items:center;justify-content:center;width:200px;
-  font-variant-numeric:tabular-nums;white-space:nowrap}
-/* ============ 通知中心（顶栏铃铛 + 弹窗：管理端与用户控制台共用这一份） ============ */
-/* 铃铛自带定位上下文：未读红点绝对定位挂在它右上角，不依赖各外壳 .icon-btn 的定位方式 */
-.notif-btn{position:relative}
-.notif-btn .notif-dot{position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;
-  background:var(--red,#e5484d);display:none}
-/* 弹窗高度写死：切页签 / 翻页只重绘内容，窗口尺寸零跳动（左右留白由 .modal 自身负责） */
-#notif-modal .modal{height:min(70vh,560px);display:flex;flex-direction:column}
-/* 内容区内部滚动、翻页条单独占底部一行：公告再多，翻页器也钉在弹窗底部不动 */
-.notif-body{flex:1 1 auto;min-height:0;overflow-y:auto;padding-right:4px}
-.notif-foot{flex:0 0 auto;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
-.notif-foot .pager{margin-top:0;justify-content:center}
-/* 通知条目用网格排版：图标 / 文案 / 时间 / 删除四列在每一行都占同一列宽。
-   时间列取 max-content —— 库里的时间戳格式统一（YYYY-MM-DD HH:MM:SS）宽度一致，
-   于是逐行的时间戳与删除按钮严格对齐，文案长短、换行与否都不影响 */
-.notif-list{display:flex;flex-direction:column;gap:8px}
-.notif-item{display:grid;grid-template-columns:20px minmax(0,1fr) max-content 24px;align-items:center;
-  gap:12px;padding:12px 16px;border-radius:var(--r-sm);background:var(--soft,#f2f2f2);
-  box-shadow:var(--ring,inset 0 0 0 1px rgba(0,0,0,.06))}
-.notif-item .ic{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;color:var(--fg2,#4d4d4d)}
-.notif-item .ic svg{width:16px;height:16px}
-.notif-item .tx{min-width:0;font-size:14px;line-height:1.5;word-break:break-word}
-.notif-item .meta{font-size:12px;color:var(--fg3,#8f8f8f);white-space:nowrap;text-align:right;
-  font-variant-numeric:tabular-nums}
-.notif-item .del{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;
-  border:none;border-radius:var(--r-sm);background:none;color:var(--fg3,#8f8f8f);cursor:pointer;padding:0;
-  opacity:.35;transition:opacity var(--motion-fast),color var(--motion-fast)}
-.notif-item .del:hover,.notif-item .del:focus-visible{opacity:1;color:var(--red,#e5484d);background:var(--soft,#f2f2f2)}
-.notif-item .del svg{width:14px;height:14px}
 /* ============ 视觉隐藏（读屏可见） ============ */
 /* 状态列只有一个色点，说明原本只挂在 title 上——空元素上的 title 并不保证被播报。
    圆点本体标 aria-hidden，语义改由紧随其后的这段文本承担，读屏只念一次 */
-/* 绝对定位必须写死 left/top：不写时它的包含块是初始包含块（最近的非 static 祖先可能是 body），
-   在可横向滚动的宽表格里会落在表格列的静态位置上，撑大整个文档的 scrollWidth（卡片的
-   overflow:hidden 也拦不住，因为包含块在卡片之外）。钉在 0/0 后它只占 1px，不再参与横向溢出 */
-.sr-only{position:absolute;left:0;top:0;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
   clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
 /* ============ 减少动态效果 ============ */
 /* 前庭敏感用户关掉位移与淡入：切页、弹窗、通知都不再移动，只保留颜色类的即时反馈 */
 @media (prefers-reduced-motion: reduce){
   *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
 }
-/* ============ 手机窄屏 ============ */
-/* 放在文件末尾：这些覆盖要压过上面各组件的基础规则——同特异度时由源码顺序决定，
-   写在组件定义之前会被后面的基础值盖回去 */
-@media (max-width:640px){
-  /* 遮罩与弹窗内边距同时收紧，把宽度让给内容；高度改用 dvh，跟随移动端地址栏伸缩，
-     否则 86vh 会在地址栏收起时多出一截、再把操作条顶出屏幕。640px 以上仍是 960×640 */
-  .modal-overlay{padding:12px}
-  .modal{padding:20px 16px;width:100%;height:min(640px,86vh);height:min(640px,calc(100dvh - 24px));border-radius:12px}
-  .modal-head{gap:8px;margin-bottom:12px}
-  /* 长标题/长插件名必须能断行，否则会把右上角 X 挤到下一行 */
-  .modal-head h3{min-width:0;overflow-wrap:anywhere}
-  /* 两三个按钮在窄屏一行排不下时换行，不撑出横向滚动 */
-  .modal-actions{flex-wrap:wrap;margin-top:16px}
-  .modal>.modal-actions{padding-top:16px}
-  /* 确认框按内容自适应高度；长文案或需要手动输入确认词时不能超过视口，超出在正文内滚 */
-  .modal.confirm{max-height:calc(100dvh - 24px)}
-  /* 长串（URL / JSON / EVkey）在窄屏必须能断行，否则会把弹窗拉出横向滚动条 */
-  .modal-body{overflow-wrap:anywhere}
-  .modal .modal-sub{margin:-4px 0 12px}
-  /* 通知条目：时间列 max-content 在窄屏会把正文压成一条缝，改成图标 + 正文 + 删除三列，
-     时间单独落到正文下方一行 */
-  .notif-item{grid-template-columns:20px minmax(0,1fr) 24px;align-items:start;gap:4px 8px}
-  .notif-item .ic{grid-column:1;grid-row:1}
-  .notif-item .tx{grid-column:2;grid-row:1}
-  .notif-item .meta{grid-column:2;grid-row:2;text-align:left}
-  .notif-item .del{grid-column:3;grid-row:1;align-self:start}
-  #notif-modal .modal{height:min(70vh,560px);height:min(70dvh,560px)}
-  /* 分页条：200px 的页码信息会把四个按钮挤成参差两行。改成信息独占一行、按钮居中一行 */
-  .pager{justify-content:center;gap:6px}
-  .pager .pg-info{order:-1;width:100%}
-}
-@media (max-width:400px){
-  .modal-overlay{padding:8px}
-  .modal{padding:16px 12px;height:min(640px,calc(100dvh - 16px));border-radius:10px}
-  .modal.confirm{max-height:calc(100dvh - 16px)}
-}
 
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:var(--sans);background:var(--bg);color:var(--fg);min-height:100vh}
 .wrap{max-width:1140px;margin:0 auto;padding:32px 24px 64px}
+/* 顶栏：logo 回首页，右侧给一个登录入口（访客页唯一的跳出点） */
 .hd{display:flex;align-items:center;gap:8px;margin-bottom:24px}
 .hd .brand{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:600;letter-spacing:-.3px;color:var(--fg);text-decoration:none}
 .hd .brand:hover{opacity:.75}
+/* 顶栏品牌放大：只动访客页顶栏这一处——共享层的 .logo-mark 是全局 20×20
+   （侧栏、概览缩略图都在用），不能改。高度必须一起给：这个 svg 的 viewBox 是竖版，
+   只改宽度的话高度仍被 20px 钉住、图形反而更小，宽度也白留 */
 .hd .brand .logo-mark{width:32px;height:32px}
 .hd .brand>span{font-size:24px}
 .hd .sp{flex:1}
 .hd .lnk{font-size:12px;color:var(--fg2);text-decoration:none;padding:8px 16px;border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--line);transition:all var(--motion-fast)}
 .hd .lnk:hover{color:var(--fg);background:var(--soft)}
+/* 框架版本号：挂在顶栏品牌旁，说明这一页由哪个框架版本渲染。
+   等宽小字 + 淡色胶囊，不抢标题与卡片的层级 */
 .hd .ver{font-family:var(--mono);font-size:11px;color:var(--fg3);padding:2px 8px;border-radius:999px;background:var(--soft);align-self:center}
 h1{font-size:32px;font-weight:600;letter-spacing:-1px}
+/* 分区栏：页头（这一页是什么）与卡片网格（有哪些插件）之间的结构线。
+   没有它时，标题、数量、卡片是三层同样口吻的堆叠，层次读不出来 */
 .secbar{display:flex;align-items:baseline;justify-content:space-between;gap:16px;
   margin-top:24px;padding-bottom:8px;border-bottom:1px solid var(--line)}
 .secbar-t{font-size:14px;font-weight:600;letter-spacing:-.2px;color:var(--fg)}
 .secbar-c{font-size:12px;color:var(--fg3)}
+/* 网格：宽屏一行三个，窄屏逐级降到两列 / 单列。卡片高度由内容（四段固定行数）决定，
+   不再用 aspect-ratio 撑正方形——内容之外的地方全成了空白 */
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:16px}
+/* 空态：真没插件（或占位兜底页）时铺在这一格网格里。它跨满整行，纵向排一句说明 + 一个
+   「阅读文档」按钮——留白但不至于让人以为页面坏了 */
 .empty{grid-column:1/-1;display:flex;flex-direction:column;align-items:flex-start;gap:12px;
   font-size:14px;color:var(--fg3);padding:32px 0}
 .empty-btn{display:inline-flex;align-items:center;font-size:13px;font-weight:500;color:var(--fg);
   text-decoration:none;padding:8px 16px;border-radius:var(--r-sm);box-shadow:inset 0 0 0 1px var(--line);
   transition:all var(--motion-fast)}
 .empty-btn:hover{color:var(--fg);background:var(--soft)}
+/* ============ 卡片（单面，点击开弹窗） ============ */
+/* 高度不靠 aspect-ratio 撑：四段各自的行数是硬上限——标题 1 行、作者 1 行、描述 3 行、
+   用户组 2 行，加起来高度恒定，同一行的卡片因此天然齐平，内容超了截断 */
 .xcard{display:flex;flex-direction:column;padding:16px;border-radius:var(--r-md);
   background:var(--ds-background-100);box-shadow:var(--sh-1);cursor:pointer;outline:none;overflow:hidden;
   transition:box-shadow var(--motion-fast),transform var(--motion-fast)}
 .xcard:hover{box-shadow:var(--sh-2);transform:translateY(-1px)}
 .xcard:focus-visible{box-shadow:var(--ds-focus-ring)}
+/* 名称一行；作者一行——**没有作者也占着这一行的高度**，否则有 / 没作者的卡片会差出一行 */
 .xname{flex-shrink:0;font-size:16px;font-weight:600;letter-spacing:-.4px;line-height:24px;height:24px;
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .xby{flex-shrink:0;margin-top:4px;font-size:12px;line-height:18px;height:18px;color:var(--fg3);
   overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 描述固定三行：短的留白、长的在第三行收省略号，卡片高度不随描述长短变 */
 .xdesc{flex-shrink:0;margin-top:8px;font-size:14px;line-height:20px;height:60px;color:var(--fg2);
   overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
+/* 可用用户组直接铺标签、不再先写一行「可用用户组」：固定两行高度，超出的组裁掉。
+   align-content:flex-end——单排标签沉在第二排（底部）对齐，只有一排放不下、
+   溢出成两排时才从第一排开始铺满这两排 */
 .xtags{flex-shrink:0;display:flex;flex-wrap:wrap;align-content:flex-end;gap:8px;margin-top:8px;
   height:48px;overflow:hidden}
 .xtags .xnone{font-size:12px;color:var(--fg3)}
 .chip{display:inline-block;font-size:11px;line-height:1.7;padding:1px 8px;border-radius:999px;
   background:var(--soft);color:var(--fg2);box-shadow:inset 0 0 0 1px var(--line)}
+/* 「全部用户组」用蓝色区分：它是一条覆盖全组的结论，与逐个列出的组名不是一回事 */
 .chip-all{background:var(--blue-soft);color:var(--blue);box-shadow:none}
+/* ============ 明细弹窗 ============ */
+/* 宽屏居中定宽，窄屏（媒体查询里）边距收窄、铺满可用宽度；超出高度只滚正文，
+   标题与关闭按钮留在原地 */
 .xmodal{position:fixed;inset:0;z-index:300;display:flex;align-items:center;justify-content:center;padding:24px}
 .xmodal[hidden]{display:none}
 .xm-bg{position:absolute;inset:0;background:var(--scrim)}
@@ -396,6 +339,7 @@ h1{font-size:32px;font-weight:600;letter-spacing:-1px}
   border-radius:var(--r-sm);background:none;color:var(--fg3);font-size:18px;line-height:1;cursor:pointer;transition:all var(--motion-fast)}
 .xm-x:hover{color:var(--fg);background:var(--soft)}
 .xm-bd{flex:1;min-height:0;overflow-y:auto;padding:0 24px 24px}
+/* 弹窗两段：路由是主角（深色 + 稍大），插件参数次之 */
 .sec{font-size:12px;font-weight:600;letter-spacing:-.1px;color:var(--fg2);margin:16px 0 8px}
 .rt{display:flex;align-items:flex-start;gap:8px;padding:8px 0;border-bottom:1px solid var(--line-soft)}
 .rt:last-child{border-bottom:none}
@@ -403,10 +347,12 @@ h1{font-size:32px;font-weight:600;letter-spacing:-1px}
   padding:0 8px;border-radius:4px;margin-top:1px}
 .rtb{flex:1;min-width:0}
 .rt .p{display:block;font-family:var(--mono);font-size:12px;line-height:1.6;color:var(--fg);word-break:break-all}
+/* 从属层：尺寸属于「这条路由的可选项」，缩进挂在路由下面，用左侧竖线表达从属关系 */
 .rtsub{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:8px;padding-left:8px;
   border-left:2px solid var(--line)}
 .rtsub-k{font-size:11px;color:var(--fg3)}
 .rtsub-v{font-family:var(--mono);font-size:11px;color:var(--fg2);background:var(--soft);padding:1px 8px;border-radius:4px}
+/* 参数只列名字：默认值是插件自带的、装完就不会变，列出来只会盖过参数名本身 */
 .pmrow{display:flex;flex-wrap:wrap;gap:8px}
 .pmk{font-family:var(--mono);font-size:11px;color:var(--fg2);background:var(--soft);padding:2px 8px;border-radius:4px}
 .none{font-size:12px;color:var(--fg3);padding:4px 0}
@@ -426,7 +372,7 @@ h1{font-size:32px;font-weight:600;letter-spacing:-1px}
 <div class="wrap">
   <div class="hd">
     <a class="brand" href="/"><svg class="logo-mark" viewBox="7 -3 128 161.6217803955078" width="20" height="20" aria-hidden="true" focusable="false"><path fill="#8A6DB1" d="M61 86.1962L26.5 106.115C22.5 108.424 17.5 105.537 17.5 100.919L17.5 61.0814C17.5 56.4626 22.5 53.5759 26.5 55.8853L61 75.8038C65 78.1133 65 83.8867 61 86.1962Z"/><path fill="#8A6DB1" d="M119 53.1962L84.5 73.1147C80.5 75.4241 75.5 72.5374 75.5 67.9186L75.5 28.0814C75.5 23.4626 80.5 20.5759 84.5 22.8853L119 42.8038C123 45.1132 123 50.8868 119 53.1962Z"/><path fill="#6E5494" d="M72.3109 27.8923L72.3109 67.7295C72.3109 72.3483 67.3109 75.235 63.3109 72.9256L28.8109 53.007C24.8109 50.6976 24.8109 44.9241 28.8109 42.6147L63.3109 22.6962C67.3109 20.3867 72.3109 23.2735 72.3109 27.8923Z"/><path fill="#6E5494" d="M72.3109 93.8923L72.3109 133.729C72.3109 138.348 67.3109 141.235 63.3109 138.926L28.8109 119.007C24.8109 116.698 24.8109 110.924 28.8109 108.615L63.3109 88.6962C67.3109 86.3867 72.3109 89.2735 72.3109 93.8923Z"/><circle cx="101" cy="96" r="12" fill="#5A4378"/></svg><span>eInkViews</span></a>
-    <span class="ver">v1.0.33</span>
+    <span class="ver">v1.0.18</span>
     <span class="sp"></span>
     
   </div>
@@ -452,7 +398,7 @@ h1{font-size:32px;font-weight:600;letter-spacing:-1px}
     <div class="xm-bd" id="xm-bd"></div>
   </div>
 </div>
-<script type="application/json" id="i18n-data">{"alert.ok": "Got it", "btn.cancel": "Cancel", "btn.close": "Close", "btn.confirm": "Confirm", "btn.copy": "Copy", "confirm.title": "Confirm", "confirm.type_after": "to confirm", "confirm.type_before": "Type", "device.forbidden": "Disabled", "device.unlimited": "Unlimited", "empty.member_logs": "No membership changes yet", "explore.login": "Login / Register", "explore.section_plugins": "Plugins", "explore.title": "Plugin explorer", "member.action_activate": "Code activation", "member.action_expire": "Expiry revert", "member.action_other": "Change", "member.action_set": "Admin change", "member.chg_exp": "Expiry {v}", "member.chg_fallback": "Fallback {v}", "member.chg_group": "Group {name}", "member.col_admin": "Operator", "member.col_change": "Change", "member.col_reason": "Reason", "member.col_time": "Time", "member.col_type": "Type", "member.forever": "Permanent", "member.group_n": "Group #{n}", "member.join_sep": "; ", "member.no_transfer": "No fallback", "member.system": "System", "msg.copied": "Copied to clipboard", "msg.copy_failed": "Copy failed, please select it manually", "msg.network_error": "Network error", "msg.processing": "Working…", "msg.session_expired": "Request failed or the session has expired, please sign in again", "notif.ann_empty": "No announcements", "notif.body_device_deleted": "Device \"{name}\" was deleted by an administrator.", "notif.body_membership_expires": "Expiry changed to {date}", "notif.body_membership_group": "Group changed to {group}", "notif.del_title": "Delete notification", "notif.empty": "No notifications", "notif.kind_device_deleted": "Device deleted", "notif.kind_membership": "Membership changed", "notif.kind_system": "System message", "notif.tab_ann": "Announcements", "notif.tab_event": "Notifications", "notif.title": "Notifications", "pager.first": "First", "pager.info": "Page {cur} of {total}", "pager.last": "Last", "pager.next": "Next", "pager.prev": "Prev", "pw.hide": "Hide password", "pw.show": "Show password", "theme.to_dark": "Switch to dark", "theme.to_light": "Switch to light", "user.evkey_limit_n": "{n}", "user.forbidden": "Disabled", "user.period_day": "daily", "user.period_month": "monthly", "user.period_short_day": "day", "user.period_short_month": "month", "user.period_short_week": "week", "user.period_short_year": "year", "user.period_trial_short": "total", "user.period_week": "weekly", "user.period_year": "yearly", "user.quota_period": "{n}/{period}", "user.quota_trial": "{n}/total", "user.unlimited": "Unlimited"}</script>
+<script type="application/json" id="i18n-data">{"alert.ok": "Got it", "btn.cancel": "Cancel", "btn.close": "Close", "btn.confirm": "Confirm", "btn.copy": "Copy", "confirm.title": "Confirm", "confirm.type_after": "to confirm", "confirm.type_before": "Type", "empty.member_logs": "No membership changes yet", "explore.login": "Login / Register", "explore.section_plugins": "Plugins", "explore.title": "Plugin explorer", "member.action_activate": "Code activation", "member.action_expire": "Expiry revert", "member.action_other": "Change", "member.action_set": "Admin change", "member.chg_exp": "Expiry {v}", "member.chg_fallback": "Fallback {v}", "member.chg_group": "Group {name}", "member.col_admin": "Operator", "member.col_change": "Change", "member.col_reason": "Reason", "member.col_time": "Time", "member.col_type": "Type", "member.forever": "Permanent", "member.group_n": "Group #{n}", "member.join_sep": "; ", "member.no_transfer": "No fallback", "member.system": "System", "msg.copied": "Copied to clipboard", "msg.copy_failed": "Copy failed, please select it manually", "msg.processing": "Working…", "msg.session_expired": "Request failed or the session has expired, please sign in again", "pager.first": "First", "pager.info": "{cur} / {total} · {n} total", "pager.last": "Last", "pager.next": "Next", "pager.prev": "Prev", "pw.hide": "Hide password", "pw.show": "Show password", "theme.to_dark": "Switch to dark", "theme.to_light": "Switch to light", "user.evkey_limit_n": "{n} EVkeys", "user.forbidden": "Disabled", "user.period_day": "daily", "user.period_month": "monthly", "user.period_short_day": "day", "user.period_short_month": "month", "user.period_short_week": "week", "user.period_short_year": "year", "user.period_trial_short": "total", "user.period_week": "weekly", "user.period_year": "yearly", "user.quota_period": "{n}/{period}", "user.quota_trial": "{n}/total", "user.unlimited": "Unlimited"}</script>
 <script>
 /* ============ i18n：服务端按当前语言把整份注册表注入 #i18n-data ============ */
 var I18N={};
@@ -470,20 +416,6 @@ function T(k,fb,fmt){
   if(fmt)v=String(v).replace(/\{(\w+)\}/g,function(m,g){return fmt[g]===undefined?m:fmt[g]});
   return v;
 }
-/* 弹窗打开期间给 body 加锁（CSS：body.modal-open{overflow:hidden}）。
-   遮罩是 fixed 层，页面本身仍可滚：弹窗内容滚到边界后滚动链会传给 document，
-   表现为「弹窗不滚、背景在滚」。用观察器统一维护，覆盖 X / 遮罩 / Esc /
-   各页直接 remove 的所有关闭路径；观察直接子节点即可（弹窗都挂在 body 下） */
-(function(){
-  function sync(){
-    var any=document.querySelector('.modal-overlay');
-    document.body.classList.toggle('modal-open',!!any);
-  }
-  if(window.MutationObserver){
-    new MutationObserver(sync).observe(document.body,{childList:true});
-  }
-  sync();
-})();
 /* ============ 共享 UI：请求工具 / 通知 / 弹窗 ============ */
 /* 统一请求包装：先解析响应体，再决定要不要兜底，解析失败一律归一为 {success:false}
    后 resolve（否则 r.json() 抛错会让调用方的 Promise 被拒，只读刷新就永久停在「加载中」）。
@@ -545,7 +477,7 @@ function pgBar(key,total,per){
     return '<button class="btn btn-sm btn-ghost" data-act="pg-go" data-key="'+key+'" data-p="'+p+'"'+(disabled?' disabled':'')+'>'+label+'</button>';
   }
   return '<div class="flex pager">'+b(T('pager.first','首页'),1,cp<=1)+b(T('pager.prev','上一页'),cp-1,cp<=1)+
-    '<span class="dim small pg-info">'+T('pager.info','第 {cur} 页 / 共 {total} 页',{cur:cp,total:tp})+'</span>'+
+    '<span class="dim small">'+T('pager.info','{cur} / {total} 页 · 共 {n} 条',{cur:cp,total:tp,n:num(total)})+'</span>'+
     b(T('pager.next','下一页'),cp+1,cp>=tp)+b(T('pager.last','末页'),tp,cp>=tp)+'</div>';
 }
 /** 前端分页：返回当前页数据与分页条 HTML */
@@ -867,16 +799,7 @@ function evkeyLimitText(v){
   if(n===null)return '-';
   if(n<0)return T('user.unlimited','不限');
   if(n===0)return T('user.forbidden','禁止');
-  return T('user.evkey_limit_n','{n}',{n:n});
-}
-/* 设备上限三态同 evkey：-1 = 不限，0 = 该组禁止绑定，N = 最多 N 台
-   （上限 0 不能念成「0 台」，那会被读成不限）。面板与用户控制台共用这一份口径 */
-function devLimitText(v){
-  var n=_intVal(v,null);
-  if(n===null)return '-';
-  if(n<0)return T('device.unlimited','不限');
-  if(n===0)return T('device.forbidden','禁止');
-  return num(n);
+  return T('user.evkey_limit_n','{n} 个',{n:n});
 }
 /* 配额两种模式共用一个字段 quota_period：day/week/month/year = 按时间周期（到点归零），
    trial = 按次总量（用完即止、永不重置）。
@@ -896,154 +819,10 @@ function quotaText(g){
   if(String(g.quota_period)==='trial')return T('user.quota_trial','{n}次/总量',{n:lim});
   return T('user.quota_period','{n}次/{period}',{n:lim,period:_periodLabel(g.quota_period)});
 }
-/* ============ 通知中心（顶栏铃铛 + 弹窗）：管理端与用户控制台共用 ============ */
-/* 两栏：公告（站内信，全站广播，不可删除）与通知（个人事件：设备被删、权限变更、系统）。
-   数据源 /admin/api/my/announcements 与 /admin/api/my/notifications。文案不存服务端 ——
-   只存 kind + payload 快照，这里现场渲染，中英切换不会露出另一种语言 */
-var _annItems=[],_notifItems=[],_NOTIF_PER_PAGE=5;
-/* 不同类别不同图标（16 viewBox / stroke=currentColor / 1.5），kind 与后端一一对应；
-   未知 kind 落到 system，宁可图标泛一点，也不给空位 */
-var _NOTIF_ICON={
-  device_deleted:'<rect x="3.5" y="2.5" width="9" height="11" rx="1.5"/><path d="M2 14 14 2"/>',
-  membership:'<path d="M8 2l5 1.5v4c0 3-2.2 5.2-5 6.5-2.8-1.3-5-3.5-5-6.5v-4z"/>',
-  system:'<circle cx="8" cy="8" r="6"/><path d="M8 7.2v4M8 5.4h.01"/>'
-};
-function _notifIcon(kind){
-  var p=_NOTIF_ICON[kind]||_NOTIF_ICON.system;
-  return '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+p+'</svg>';
-}
-function _notifKindLabel(kind){
-  if(kind==='device_deleted')return T('notif.kind_device_deleted','设备已被删除');
-  if(kind==='membership')return T('notif.kind_membership','权限变更');
-  return T('notif.kind_system','系统消息');
-}
-/* kind + payload → 可读文案。membership 一事一议：到期归位报「转入的组」，
-   组名变了报新组名，只有到期日动了才报日期——三种都报同一句会答非所问 */
-function _notifText(n){
-  var p=n.payload||{};
-  if(n.kind==='device_deleted')return T('notif.body_device_deleted','设备「{name}」已被管理员删除。',{name:p.name||''});
-  if(n.kind==='membership'){
-    if(p.action==='expire')return T('notif.body_membership_group','用户组已调整为 {group}',{group:p.group_name||p.fallback_group_name||''});
-    if((p.new_group_name||'')!==(p.old_group_name||''))return T('notif.body_membership_group','用户组已调整为 {group}',{group:p.new_group_name||''});
-    return T('notif.body_membership_expires','到期日已调整为 {date}',{date:p.expires_on||''});
-  }
-  return n.body||n.title||_notifKindLabel(n.kind);
-}
-function notifRender(){
-  var box=document.getElementById('notif-list');if(!box)return;
-  var pg=pgSlice(_notifItems,'notif-event',_NOTIF_PER_PAGE);
-  if(!_notifItems.length){
-    box.innerHTML='<div class="empty">'+esc(T('notif.empty','暂无通知'))+'</div>';
-  }else{
-    box.innerHTML='<div class="notif-list">'+pg.rows.map(function(n){
-      var label=_notifKindLabel(n.kind);
-      return '<div class="notif-item"><span class="ic" title="'+esc(label)+'">'+_notifIcon(n.kind)+'</span>'+
-        '<div class="tx">'+esc(_notifText(n))+'</div>'+
-        '<span class="meta">'+esc(fmtDT(n.created_at))+'</span>'+
-        '<button class="del" type="button" data-act="notif-del" data-id="'+n.id+'" title="'+esc(T('notif.del_title','删除通知'))+'" aria-label="'+esc(T('notif.del_title','删除通知'))+'">'+
-        '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M4 4l8 8M12 4l-8 8"/></svg></button></div>';
-    }).join('')+'</div>';
-  }
-  notifFoot();
-}
-_pgRender['notif-event']=notifRender;
-function annRender(){
-  var box=document.getElementById('notif-ann');if(!box)return;
-  var pg=pgSlice(_annItems,'notif-ann',_NOTIF_PER_PAGE);
-  if(!_annItems.length){
-    box.innerHTML='<div class="empty">'+esc(T('notif.ann_empty','暂无公告'))+'</div>';
-  }else{
-    box.innerHTML='<div class="ann-list">'+pg.rows.map(function(a){
-      return '<div class="ann-item"><div class="h"><b>'+esc(a.title)+'</b><span class="meta">'+esc(fmtDT(a.created_at))+'</span></div>'+
-        (a.content?'<div class="body">'+esc(a.content)+'</div>':'')+'</div>';
-    }).join('')+'</div>';
-  }
-  notifFoot();
-}
-_pgRender['notif-ann']=annRender;
-/* 底部固定栏只渲染「当前页签」的翻页条：公告与通知都有分页，口径一致，且都不跟着条目滚动。
-   两个页签的数据可能先后异步到达，按显示状态取当前页签，避免晚到的数据把另一页的翻页条覆盖掉 */
-function notifFoot(){
-  var foot=document.getElementById('notif-foot');if(!foot)return;
-  var ann=document.getElementById('notif-ann');
-  var onAnn=!ann||ann.style.display!=='none';
-  var pg=onAnn?pgSlice(_annItems,'notif-ann',_NOTIF_PER_PAGE)
-               :pgSlice(_notifItems,'notif-event',_NOTIF_PER_PAGE);
-  foot.innerHTML=pg.bar;
-  foot.style.display='';
-}
-function notifTab(tab){
-  var ann=document.getElementById('notif-ann'),ev=document.getElementById('notif-list');
-  if(!ann||!ev)return;
-  ann.style.display=(tab==='ann')?'':'none';
-  ev.style.display=(tab==='ann')?'none':'';
-  notifFoot();
-  var tabs=document.querySelectorAll('[data-act="notif-tab"]');
-  for(var i=0;i<tabs.length;i++)tabs[i].classList.toggle('on',tabs[i].dataset.tab===tab);
-}
-function setNotifDot(n){
-  /* 管理端同一时刻可能有两只铃铛在 DOM 里（侧栏底部 + 顶栏），逐个开关 */
-  var els=document.querySelectorAll('.notif-dot');
-  for(var i=0;i<els.length;i++)els[i].style.display=(n>0)?'block':'none';
-}
-function loadAnnouncements(){
-  R.get('/admin/api/my/announcements').then(function(d){
-    if(!d||d.success===false)return;
-    _annItems=d.items||[];
-    if(document.getElementById('notif-ann'))annRender();
-  }).catch(function(){});
-}
-function loadNotifications(){
-  R.get('/admin/api/my/notifications?limit=100').then(function(d){
-    if(!d||d.success===false)return;
-    _notifItems=d.items||[];
-    setNotifDot(d.unread||0);
-    if(document.getElementById('notif-list'))notifRender();
-  }).catch(function(){});
-}
-function openNotifications(){
-  var h='<h3>'+esc(T('notif.title','通知中心'))+'</h3>'+
-    '<div class="acc-tabs">'+
-      '<span class="acc-tab on" data-act="notif-tab" data-tab="ann">'+esc(T('notif.tab_ann','公告'))+'</span>'+
-      '<span class="acc-tab" data-act="notif-tab" data-tab="event">'+esc(T('notif.tab_event','通知'))+'</span></div>'+
-    '<div class="notif-body"><div id="notif-ann"></div><div id="notif-list" style="display:none"></div></div>'+
-    '<div class="notif-foot" id="notif-foot" style="display:none"></div>';
-  openModal(h,'notif-modal');
-  annRender();notifRender();
-  notifTab('ann');
-  /* 打开即全部标为已读（公告不参与未读），红点清零：同一条不会二次打扰。
-     定时刷新只回读未读数，新事件才会把红点点亮 */
-  R.post('/admin/api/my/notifications/read',{all:true}).then(function(d){
-    if(d&&d.success!==false)setNotifDot(d.unread||0);
-  }).catch(function(){});
-}
-/* 单条删除静默生效（与启用/停用、单条审批同一套体验）：条目当场消失就是反馈，
-   再弹一句「已删除」只是噪音；只有失败才出声 */
-function deleteNotification(id){
-  R.del('/admin/api/my/notifications/'+id).then(function(d){
-    if(!d||d.success===false){toast((d&&d.message)||T('msg.network_error','网络错误'),'error');return}
-    _notifItems=_notifItems.filter(function(n){return n.id!==id});
-    setNotifDot(d.unread||0);
-    notifRender();
-  }).catch(function(){toast(T('msg.network_error','网络错误'),'error')});
-}
-/* 铃铛 / 页签 / 删除三个动作的委托（管理面板另有自己的 data-act 委托，两边互不认识对方的键名） */
-document.addEventListener('click',function(e){
-  var el=e.target.closest?e.target.closest('[data-act]'):null;
-  if(!el)return;
-  var act=el.dataset.act;
-  if(act==='notif-open')openNotifications();
-  else if(act==='notif-tab')notifTab(el.dataset.tab);
-  else if(act==='notif-del')deleteNotification(parseInt(el.dataset.id,10));
-});
-/* 没有铃铛的页面（登录 / 注册 / 访客页）不发这两个请求，也不起定时器 */
-if(document.querySelector('[data-act="notif-open"]')){
-  loadAnnouncements();loadNotifications();
-  /* 未读数定时刷新；页面被隐藏时跳过（切回来那次 tick 会立刻补上） */
-  setInterval(function(){if(!document.hidden)loadNotifications()},60000);
-}
 </script>
 <script>
+/* 卡片的明细内联在自身的 <template class="xdetail"> 里，打开时原样搬到弹窗——
+   前端不新增任何接口（见文件头说明） */
 var xm=document.getElementById('xmodal'),xmBd=document.getElementById('xm-bd'),
     xmName=document.getElementById('xm-name'),xmMeta=document.getElementById('xm-meta'),
     xmLast=null;
@@ -1061,6 +840,7 @@ function xmClose(){
   if(xm.hidden)return;
   xm.hidden=true;
   document.body.style.overflow='';
+  /* 关掉后把焦点还给刚才那张卡，键盘用户不必从头 Tab 回来 */
   if(xmLast&&xmLast.focus)xmLast.focus();
 }
 document.addEventListener('click',function(e){

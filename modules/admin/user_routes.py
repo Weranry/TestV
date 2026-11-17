@@ -3,9 +3,7 @@ import asyncio
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from modules.admin.common import (
-    _body, _drop_account_semaphores, _drop_group_semaphores, _int_field, is_super_admin,
-)
+from modules.admin.common import _body, _drop_account_semaphores, _drop_group_semaphores, _int_field
 from modules.errors.errors import error_response
 from modules.i18n.registry import t_req
 
@@ -81,16 +79,6 @@ async def admin_create_account(request: Request):
     if not password or len(password) < 6: return error_response(t_req(request, 'auth.pw_short'), 400)
     # 与注册同一约束：邮箱是「忘记密码」的唯一凭据，建号时就必须有
     if not email or '@' not in email: return error_response(t_req(request, 'user.need_valid_email'), 400)
-    # 建管理组账号 = 造一个能进后台的管理员。只有系统主管理员能这么做，
-    # 否则普通管理员可以自建一个同组账号（或把自己转进去）完成权限提升
-    if not is_super_admin(request):
-        from modules.database.groups import get_group, is_admin_category
-        try:
-            target_group = await asyncio.to_thread(get_group, int(group_id))
-        except (TypeError, ValueError):
-            target_group = None
-        if target_group and is_admin_category(target_group.get('category')):
-            return error_response(t_req(request, 'user.super_only_admin_group'), 403)
     try:
         from modules.database.accounts import create_account, get_account_by_name, is_numeric_identifier
         # 与注册同一约束：账号名不能是纯数字，否则「按 uid 登录」没法与账号名消歧
@@ -129,20 +117,7 @@ async def admin_update_account(account_id: int, request: Request):
     before = await asyncio.to_thread(get_account_row, account_id)
     if before is None:
         return error_response(t_req(request, 'user.account_not_found'), 404)
-    # 普通管理员不能动其他管理员账号（改密码、禁用、换组都等于接管对方的权限）
-    if before.get('group_category') == 'admin' and not is_super_admin(request):
-        return error_response(t_req(request, 'user.super_only_admin_target'), 403)
     payload = dict(body)
-    # 普通管理员也不能把普通账号转进管理组：那是变相给自己造管理员
-    if 'group_id' in payload and not is_super_admin(request):
-        from modules.database.groups import get_group, is_admin_category
-        new_group = None
-        try:
-            new_group = await asyncio.to_thread(get_group, int(payload.get('group_id')))
-        except (TypeError, ValueError):
-            new_group = None
-        if new_group and is_admin_category(new_group.get('category')):
-            return error_response(t_req(request, 'user.super_only_admin_group'), 403)
     if 'name' in payload:
         new_name = str(payload.get('name') or '').strip()
         if not new_name:
@@ -204,15 +179,10 @@ async def admin_update_account(account_id: int, request: Request):
 
 @router.delete('/api/accounts/{account_id}')
 async def admin_delete_account(account_id: int, request: Request):
-    from modules.database.accounts import (
-        delete_account, default_admin_account_id, get_account_row)
+    from modules.database.accounts import delete_account, default_admin_account_id
     # 建库时生成的兜底管理账号不能删：删掉它，管理入口就没有可用的兜底账号了
     if account_id == await asyncio.to_thread(default_admin_account_id):
         return error_response(t_req(request, 'user.builtin_acct_no_delete'), 400)
-    # 普通管理员不能删除其他管理员账号（删掉主管理员之外的管理员同样是越权）
-    target = await asyncio.to_thread(get_account_row, account_id)
-    if target and target.get('group_category') == 'admin' and not is_super_admin(request):
-        return error_response(t_req(request, 'user.super_only_admin_target'), 403)
     await asyncio.to_thread(delete_account, account_id)
     from modules.auth.auth import invalidate_auth_cache
     invalidate_auth_cache()
@@ -443,9 +413,6 @@ async def admin_create_group(request: Request):
     if name in {g['name'] for g in await asyncio.to_thread(get_all_groups)}:
         return error_response(t_req(request, 'msg.group_name_taken', name=name), 409)
     category = normalize_category(body.get('category'))
-    # 造一个管理组 = 造一个能进后台的身份，只有系统主管理员可以
-    if category == 'admin' and not is_super_admin(request):
-        return error_response(t_req(request, 'user.super_only_admin_group'), 403)
     gid = await asyncio.to_thread(
         create_group,
         name, body.get('description', ''),
@@ -458,8 +425,6 @@ async def admin_create_group(request: Request):
         # 普通用户组只有「我的」，分页清单不保留；管理组按勾选结果存
         normalize_admin_tabs(body.get('admin_tabs')) if category == 'admin' else '',
         _int_field(body, 'show_announcement', 1),
-        # 设备上限：-1 = 不限（默认），0 = 禁止签入，N = 最多 N 台
-        _int_field(body, 'max_devices', -1),
     )
     return JSONResponse({'id': gid, 'name': name})
 
@@ -469,13 +434,6 @@ async def admin_update_group(group_id: int, request: Request):
     if body is None: return error_response(t_req(request, 'msg.bad_json'), 400)
     guard = await asyncio.to_thread(_builtin_admin_guard, group_id, t_req(request, 'user.builtin_admin_no_edit'))
     if guard: return guard
-    # 非主管理员既不能改现有的管理组（改分页权限/限额同样能动到别人的后台入口），
-    # 也不能把普通组改成管理组
-    if not is_super_admin(request):
-        from modules.database.groups import get_group, is_admin_category
-        target_group = await asyncio.to_thread(get_group, group_id)
-        if target_group and is_admin_category(target_group.get('category')):
-            return error_response(t_req(request, 'user.super_only_admin_group'), 403)
     from modules.database.groups import update_group, get_all_groups, normalize_admin_tabs, normalize_category
     from modules.database.quotas import normalize_period
     new_name = (body.get('name') or '').strip()
@@ -484,7 +442,7 @@ async def admin_update_group(group_id: int, request: Request):
     payload = dict(body)
     # 数值字段统一整型化（空值 = 0），周期收敛到合法取值，避免 'false' 这类字符串
     # 被原样写进库，读回来再经 parse_config_value 变成 truthy
-    for key in ('max_evkeys', 'max_devices', 'max_concurrent_renders', 'rate_limit_per_minute', 'quota_limit'):
+    for key in ('max_evkeys', 'max_concurrent_renders', 'rate_limit_per_minute', 'quota_limit'):
         if key in payload:
             payload[key] = _int_field(payload, key, 0)
     if 'quota_period' in payload:
@@ -494,8 +452,6 @@ async def admin_update_group(group_id: int, request: Request):
         payload['show_announcement'] = _int_field(payload, 'show_announcement', 1)
     if 'category' in payload:
         payload['category'] = normalize_category(payload['category'])
-        if payload['category'] == 'admin' and not is_super_admin(request):
-            return error_response(t_req(request, 'user.super_only_admin_group'), 403)
     if payload.get('category') == 'user':
         # 改回普通用户组时清掉遗留的分页清单：留着的话下次切回管理组会带出一份过期的旧勾选
         payload['admin_tabs'] = ''
@@ -537,9 +493,6 @@ async def admin_delete_group(group_id: int, request: Request):
         return error_response(t_req(request, 'user.group_not_found'), 404)
     if group.get('builtin'):
         return error_response(t_req(request, 'user.builtin_group_undeletable', name=group['name']), 400)
-    # 删管理组 = 删掉一批管理员的后台身份，只有系统主管理员可以
-    if is_admin_category(group.get('category')) and not is_super_admin(request):
-        return error_response(t_req(request, 'user.super_only_admin_group'), 403)
 
     unexpired = await asyncio.to_thread(count_unexpired_accounts_in_group, group_id)
     if unexpired > 0:
@@ -702,12 +655,6 @@ async def admin_set_group_perms(group_id: int, request: Request):
     if body is None: return error_response(t_req(request, 'msg.bad_json'), 400)
     guard = await asyncio.to_thread(_builtin_admin_guard, group_id, t_req(request, 'user.builtin_admin_no_perm'))
     if guard: return guard
-    # 管理组的插件/路由权限同样归主管理员管：普通管理员改它等于给别的管理员断入口
-    if not is_super_admin(request):
-        from modules.database.groups import get_group, is_admin_category
-        target_group = await asyncio.to_thread(get_group, group_id)
-        if target_group and is_admin_category(target_group.get('category')):
-            return error_response(t_req(request, 'user.super_only_admin_group'), 403)
     from modules.database.groups import set_group_plugin, delete_group_plugin, set_group_route, delete_group_route
     # 值必须是显式规则：False 才是"禁用"（缺规则表示默认允许）。
     # 传 null 表示删除规则、恢复默认允许，不能用"删除"来表达禁用，否则永远禁不掉。
@@ -736,12 +683,6 @@ async def admin_set_group_params(group_id: int, request: Request):
     if body is None: return error_response(t_req(request, 'msg.bad_json'), 400)
     guard = await asyncio.to_thread(_builtin_admin_guard, group_id, t_req(request, 'user.builtin_admin_no_perm'))
     if guard: return guard
-    # 与权限配置同一条口径：管理组的参数限制也只由主管理员设置
-    if not is_super_admin(request):
-        from modules.database.groups import get_group, is_admin_category
-        target_group = await asyncio.to_thread(get_group, group_id)
-        if target_group and is_admin_category(target_group.get('category')):
-            return error_response(t_req(request, 'user.super_only_admin_group'), 403)
     from modules.database.access import set_group_param, delete_group_param
     # 与插件/路由权限同一套语义：enabled=False 才是"禁用该参数"，null 表示删除规则恢复默认允许
     if 'param_key' in body:
@@ -950,47 +891,4 @@ async def admin_reject_application(app_id: int, request: Request):
     body = await _body(request) or {}
     from modules.database.applications import reject_evkey_application
     await asyncio.to_thread(reject_evkey_application, app_id, body.get('note', ''))
-    return JSONResponse({'success': True})
-
-
-# ---- Password reset requests ----
-
-@router.get('/api/password-resets')
-async def admin_list_password_resets():
-    """待处理的找回密码申请。已处理的不再列出：批准/拒绝时当场就做完了决定。"""
-    from modules.database.password_resets import list_pending
-    return JSONResponse({'requests': await asyncio.to_thread(list_pending)})
-
-
-@router.post('/api/password-resets/{request_id}/approve')
-async def admin_approve_password_reset(request_id: int, request: Request):
-    """批准申请：生成一次性临时密码并强制对方登录后改密。
-
-    明文只在这一次响应里返回，库里只有哈希；管理员需要当面/私下转交。
-    """
-    from modules.database.password_resets import TEMP_PASSWORD_TTL_HOURS, approve, get_pending
-    # 批准 = 换掉对方口令。普通管理员若能批准管理组账号的申请，等于拿到主管理员的
-    # 临时密码直接接管后台，这条必须由主管理员亲自处理
-    target = await asyncio.to_thread(get_pending, request_id)
-    if target and target.get('group_category') == 'admin' and not is_super_admin(request):
-        return error_response(t_req(request, 'user.super_only_admin_target'), 403)
-    temp_password = await asyncio.to_thread(approve, request_id, _actor_name(request))
-    if not temp_password:
-        return error_response(t_req(request, 'reset.request_not_found'), 404)
-    # 缓存里可能还留着旧的账号信息，批准后必须立即失效
-    from modules.auth.auth import invalidate_auth_cache
-    invalidate_auth_cache()
-    return JSONResponse({
-        'success': True,
-        'temp_password': temp_password,
-        'expires_hours': TEMP_PASSWORD_TTL_HOURS,
-    })
-
-
-@router.post('/api/password-resets/{request_id}/reject')
-async def admin_reject_password_reset(request_id: int, request: Request):
-    """拒绝申请：只改状态，绝不触碰账号口令。"""
-    from modules.database.password_resets import reject
-    if not await asyncio.to_thread(reject, request_id, _actor_name(request)):
-        return error_response(t_req(request, 'reset.request_not_found'), 404)
     return JSONResponse({'success': True})

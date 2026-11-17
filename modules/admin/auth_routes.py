@@ -3,7 +3,7 @@ import asyncio
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
-from modules.admin.common import _body, _client_ip, is_super_admin
+from modules.admin.common import _body, _client_ip
 from modules.i18n.registry import t_req
 from modules.auth.auth import (
     create_session_token, set_session_cookie, clear_session_cookie,
@@ -123,45 +123,47 @@ async def auth_register(request: Request):
         log_change(aid, 'activate', None, get_membership(aid), '注册时使用激活码开通', '')
     return JSONResponse({'success': True, 'id': aid, 'message': t_req(request, 'register.done')})
 
-@router.post('/api/auth/reset-request')
-async def auth_reset_request(request: Request):
-    """忘记密码：提交申请，由管理员核实后发放一次性临时密码。
+@router.post('/api/auth/reset-password')
+async def auth_reset_password(request: Request):
+    """忘记密码：账号名 + 注册邮箱都对上，就允许当场设新密码。
 
-    这里不再接受新口令：账号名 + 注册邮箱只能证明「申请人知道这两项」，不足以在
-    无人核实的情况下直接接管账号（邮箱也不全局唯一）。因此只登记待审批申请，
-    真正的新口令由管理员在面板里批准时随机生成，见 modules/database/password_resets.py。
+    项目没有任何邮件服务，所以不做「发验证码/发链接」那一套；注册邮箱在这里就是
+    「你是这个账号主人」的凭据（注册必填、列表不展示、只在账号详情里可见）。
+    邮箱并不保证全局唯一，因此必须与账号名一起校验——只比邮箱等于谁都能改别人密码。
 
-    响应刻意统一为成功：无论账号是否存在、邮箱是否匹配、是否处于限流锁定，
-    调用方都得到同一句话，避免把这里变成「查某个邮箱是否属于某账号」的探测接口。
-    失败仍计入防撞库（独立 resetreq 维度），否则邮箱可以拿来慢慢试。
+    失败同样计入防撞库（独立的 reset 维度），否则邮箱可以拿来慢慢试。
     """
     body = await _body(request)
     if body is None: return error_response(t_req(request, 'msg.bad_json'), 400)
     username = body.get('username', '').strip()
     email = (body.get('email') or '').strip()
+    new_password = body.get('password', '')
     if not username: return error_response(t_req(request, 'login.need_username'), 400)
     if not email: return error_response(t_req(request, 'reset.need_registered_email'), 400)
+    if not new_password or len(new_password) < 6:
+        return error_response(t_req(request, 'auth.pw_short'), 400)
 
-    ok_message = JSONResponse({'success': True, 'message': t_req(request, 'reset.requested')})
     from modules.utils import login_guard
-    guard_keys = [f'resetreq:{username.lower()}', f'ip:{_client_ip(request)}']
-    if await login_guard.check(guard_keys):
-        # 锁定期间静默丢弃：不建申请，也不告诉调用方「你被限流了」
-        return ok_message
+    guard_keys = [f'reset:{username.lower()}', f'ip:{_client_ip(request)}']
+    locked = await login_guard.check(guard_keys)
+    if locked:
+        return error_response(
+            t_req(request, 'login.locked', locked=locked), 429, headers={'Retry-After': str(locked)}
+        )
 
-    from modules.database.accounts import get_account_for_reset
-    # 查库是同步 IO，照 login 的做法下放线程
+    from modules.database.accounts import get_account_for_reset, set_account_password
+    # 匹配与改密都是同步查库 + pbkdf2，照 login 的做法下放线程
     acct = await asyncio.to_thread(get_account_for_reset, username, email)
     if not acct:
         await login_guard.record_failure(guard_keys)
-        return ok_message
-    # 匹配成功同时清掉账号与来源 IP 两个维度的计数（与 login 成功后同一口径）
+        return error_response(t_req(request, 'reset.bad_credentials'), 400)
     await login_guard.record_success(guard_keys)
-    from modules.database.password_resets import create_request
-    await asyncio.to_thread(create_request, acct['id'])
-    # 顺手解掉登录维度的锁定：能证明是本人，就不该再被旧的失败计数挡在门外
+    await asyncio.to_thread(set_account_password, acct['id'], new_password)
+    # 顺手解掉登录维度的锁定：能走到这里已经证明是本人在重置，不该再被旧的失败计数挡在门外
     await login_guard.record_success([f'user:{username.lower()}'])
-    return ok_message
+    from modules.auth.auth import invalidate_auth_cache
+    invalidate_auth_cache()
+    return JSONResponse({'success': True, 'message': t_req(request, 'reset.done')})
 
 @router.post('/api/auth/logout')
 async def auth_logout():
@@ -178,20 +180,6 @@ async def auth_change_password(request: Request):
     new_password = body.get('password', '')
     if not new_password or len(new_password) < 6:
         return error_response(t_req(request, 'auth.pw_short'), 400)
-
-    # 已经是本人登录态，仍然要求旧密码：会话可能被 XSS/共享设备拿去，改密是接管账号的
-    # 最后一步，不该只凭一个 Cookie 就能完成。首次强制改密（内置账号还是初始口令）除外，
-    # 那条链路刚用初始口令登录过，再要求一遍旧密码只是多余摩擦。
-    if not user.get('must_change_password'):
-        old_password = body.get('old_password', '')
-        if not old_password:
-            return error_response(t_req(request, 'chpass.need_old'), 400)
-        from modules.database.accounts import verify_account_password
-        # pbkdf2 是同步计算，照登录/改密的做法下放线程
-        ok = await asyncio.to_thread(verify_account_password, user['id'], old_password)
-        if not ok:
-            return error_response(t_req(request, 'chpass.old_mismatch'), 400)
-
     from modules.database.accounts import set_account_password, is_setup_required
     from modules.auth.auth import invalidate_auth_cache
     # 与新密码的 pbkdf2 同理：下放线程，避免改密请求卡住其它并发请求
@@ -215,10 +203,6 @@ async def admin_me(request: Request):
     group = {}
     plugins = []
     routes = []
-    # 设备名额与已绑定台数：「我的」页额度区要展示「设备数 / 上限」。口径直接问 device store
-    # （管理组折算成不限、按 account_id 计数），不另算一套，免得与限额判定对不上
-    from modules.device import store as device_store
-    device_count = device_store.count_devices_for_account(user['id'])
     # 会员信息（激活码开通）：到期日 + 到期后转入的用户组名，个人控制台要展示
     membership = {
         'expires_on': user.get('expires_on') or '',
@@ -241,7 +225,6 @@ async def admin_me(request: Request):
                 'rate_limit_per_minute': int(g.get('rate_limit_per_minute') or 0),
                 'quota_limit': int(g.get('quota_limit') or 0),
                 'quota_period': g.get('quota_period') or 'day',
-                'max_devices': device_store.group_max_devices(user['group_id']),
             }
         perms = get_group_permissions(user['group_id'])
         # 未显式配置 = 默认允许；显式配置为 False 才是禁用
@@ -260,16 +243,12 @@ async def admin_me(request: Request):
     return JSONResponse({
         'authenticated': True,
         'is_admin': is_admin_user(user),
-        # 系统主管理员 = 内置管理组的兜底账号：面板据此隐藏恢复备份 / 恢复出厂等
-        # 整库级入口；真正的拦截在后端，前端只是不摆出按下去必然 403 的按钮
-        'is_super': is_super_admin(request),
         'user': {
             'id': user['id'], 'uid': user.get('uid'), 'name': user.get('name', ''),
             'group_id': user['group_id'], 'group_name': user['group_name'],
             'description': user.get('description', ''),
         },
         'group': group,
-        'device_count': device_count,
         'membership': membership,
         'permissions': {'plugins': plugins, 'routes': routes},
     })
@@ -418,60 +397,6 @@ async def my_announcements(request: Request):
         return {'items': get_announcements_for_group(user.get('group_id'))}
     except Exception as e:
         return error_response(str(e), 500)
-
-@router.get('/api/my/notifications')
-async def my_notifications(request: Request):
-    """我的通知：分页列表 + 总数 + 未读数（read_at 为空即未读）。"""
-    user = getattr(request.state, 'user', None)
-    if not user: return error_response(t_req(request, 'msg.need_login'), 401)
-    try:
-        from modules.database import notifications
-        limit = min(max(int(request.query_params.get('limit', 20)), 1), 200)
-        offset = max(int(request.query_params.get('offset', 0)), 0)
-        uid = user['id']
-        items, total, unread = await asyncio.to_thread(
-            lambda: (notifications.list_notifications(uid, limit, offset),
-                     notifications.count_notifications(uid),
-                     notifications.count_unread(uid)))
-        return {'items': items, 'total': total, 'unread': unread}
-    except Exception as e:
-        return error_response(str(e), 500)
-
-@router.post('/api/my/notifications/read')
-async def my_notifications_read(request: Request):
-    """标记为已读：`{ids:[…]}` 或 `{all:true}`；返回剩余未读数。"""
-    user = getattr(request.state, 'user', None)
-    if not user: return error_response(t_req(request, 'msg.need_login'), 401)
-    body = await _body(request)
-    if body is None: return error_response(t_req(request, 'msg.bad_json'), 400)
-    from modules.database import notifications
-    uid = user['id']
-    if body.get('all'):
-        await asyncio.to_thread(notifications.mark_read, uid, None, True)
-    else:
-        ids = body.get('ids')
-        if not isinstance(ids, list):
-            return error_response(t_req(request, 'user.ids_not_list'), 400)
-        await asyncio.to_thread(notifications.mark_read, uid, ids)
-    unread = await asyncio.to_thread(notifications.count_unread, uid)
-    return {'success': True, 'unread': unread}
-
-@router.delete('/api/my/notifications/{notif_id}')
-async def my_notification_delete(notif_id: str, request: Request):
-    """删一条自己的通知；不属于本人（或不存在）一律 404。"""
-    user = getattr(request.state, 'user', None)
-    if not user: return error_response(t_req(request, 'msg.need_login'), 401)
-    try:
-        nid = int(notif_id)
-    except (TypeError, ValueError):
-        return error_response(t_req(request, 'notif.not_found'), 404)
-    from modules.database import notifications
-    uid = user['id']
-    rows = await asyncio.to_thread(notifications.delete_notification, uid, nid)
-    if not rows:
-        return error_response(t_req(request, 'notif.not_found'), 404)
-    unread = await asyncio.to_thread(notifications.count_unread, uid)
-    return {'success': True, 'unread': unread}
 
 @router.post('/api/my/evkeys/apply')
 async def my_apply_evkey(request: Request):

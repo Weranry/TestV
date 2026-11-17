@@ -66,7 +66,7 @@ def register_view_routes(router, plugin_name, view_dir):
                     for pk in ('rotate', 'invert', 'cmode'):
                         if request.query_params.get(pk) is not None \
                                 and not check_group_param_access(group_id, pk):
-                            raise ParamError('api.err_group_param', key=pk)
+                            raise ParamError(f'用户组禁止使用{pk}参数')
 
                 # 定时预渲染命中：业务参数一致即命中，旋转/反色/cmode/格式按本次请求现算
                 from modules.prerender import store as prerender_store
@@ -79,10 +79,9 @@ def register_view_routes(router, plugin_name, view_dir):
                     mod = importlib.import_module(f'plugins.{plugin_name}.view.{_kind}.{size}')
                 except ModuleNotFoundError as e:
                     plog.exception(f'视图 {plugin_name}.view.{_kind}.{size} 不存在')
-                    raise ParamError('api.err_view_missing',
-                         view=f'{plugin_name}.view.{_kind}.{size}', msg=e)
+                    raise ParamError(f'视图 {plugin_name}.view.{_kind}.{size} 不存在: {str(e)}')
                 if not hasattr(mod, 'generate_image'):
-                    raise ParamError('api.err_view_no_gen', view=f'{plugin_name}.view.{_kind}.{size}')
+                    raise ParamError(f'视图 {plugin_name}.view.{_kind}.{size} 未实现 generate_image')
 
                 rotate = params.pop('rotate')
                 invert = params.pop('invert')
@@ -117,7 +116,7 @@ def register_view_routes(router, plugin_name, view_dir):
                 plog.exception(f'图片生成失败: {e}')
                 # 渲染失败是服务端的问题：包成 ParamError 会变成 400，调用方会以为
                 # 是自己参数写错了，日志统计里也会把它当成「正常流量」漏掉
-                raise RenderError('api.err_render_failed', msg=e)
+                raise RenderError(f'图片生成失败: {str(e)}')
 
             # 编码同样是 CPU 密集（1-bit 大图 PNG/JPEG 要几十毫秒），下放线程避免卡事件循环
             return await asyncio.to_thread(

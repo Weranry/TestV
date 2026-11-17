@@ -366,35 +366,3 @@ def uninstall_plugin(name, plugins_dir):
         shutil.rmtree(target)
         plog.info(f'插件已卸载: {name}')
         return {'name': name}
-
-
-def uninstall_all_plugins(plugins_dir):
-    """删除 `plugins/` 下的全部插件目录，返回被删除的插件名列表。
-
-    识别规则与 register_plugins 保持一致：**直接子目录且目录下有 `routes.py`**。
-    点目录（`.staging` 等中转目录）与普通文件一律不碰，避免误删安装中转内容。
-    """
-    plugins_dir = os.path.abspath(plugins_dir)
-    removed = []
-    try:
-        names = sorted(os.listdir(plugins_dir))
-    except OSError:
-        return removed
-    for name in names:
-        # 只跳过点目录（安装中转目录）：识别规则与 register_plugins 的
-        # 「直接子目录且目录下有 routes.py」完全一致，避免漏删非常规命名的插件
-        if name.startswith('.'):
-            continue
-        target = os.path.join(plugins_dir, name)
-        if not os.path.isdir(target):
-            continue
-        if not os.path.isfile(os.path.join(target, 'routes.py')):
-            continue
-        try:
-            shutil.rmtree(target)
-            removed.append(name)
-        except OSError:
-            plog.exception(f'删除插件目录失败: {name}')
-    if removed:
-        plog.info(f'已清理全部插件: {len(removed)} 个')
-    return removed

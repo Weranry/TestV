@@ -57,8 +57,7 @@ CACHE_MAXSIZE = 64
 #----------------------边缘缓存（仅 Vercel）------------------------------------#
 # 图像响应的 Vercel CDN 边缘缓存秒数，0 = 关闭。**只在 vercel 模式生效**，本地 dev/prod 不受影响。
 # 用 Vercel 独占的 Vercel-CDN-Cache-Control 下发：该头不会被返回给客户端，因此不会
-# 让 ESP32 / 浏览器把 CDN 缓存当成可离线复用的副本；设备侧只走 `/device/image` 的
-# ETag 条件校验（304 不传字节），不做本地内容缓存。
+# 触发 ESP32 / 浏览器端的缓存（项目明确不接受设备端缓存机制）。
 # 命中边缘缓存时函数不执行，也就不产生鉴权、限流、日志与统计——这是刻意取舍：
 # Vercel 侧的 evkey 只为挡住恶意请求，而命中缓存的请求本就不消耗函数算力。
 EDGE_CACHE_TTL = 300
@@ -81,10 +80,8 @@ RATE_LIMIT_WHITELIST = [
     '/public',
     '/favicon.ico',
     '/admin',
-    # 设备面不走全站按 evkey 的限流（设备没有 evkey），分钟级频次改按 `device:<id>`
-    # 与来源 IP 单独计数，见 modules/device/routes.py 与 config.DEVICE_RATE_PER_MINUTE。
-    # 注意「计次额度」不同：设备取图会在路由内按属主账号单独消耗一份（quota_limit /
-    # quota_period），与网页端共用同一份账号额度。
+    # 设备面不走全站按 evkey 的限流（设备没有 evkey），改按 `device:<id>` 与来源 IP
+    # 单独计数，见 modules/device/routes.py 与 config.DEVICE_RATE_PER_MINUTE
     '/device',
 ]
 # 限流器内部存储最大条目数
@@ -127,10 +124,6 @@ LOG_CLEANUP_CYCLES = 20
 LOG_EXPORT_MAX_ROWS = 10000
 # 审计日志最大条数，超出淘汰最旧记录（0=不限）
 AUDIT_LOG_MAX_ROWS = 5000
-# 审计日志保留天数（超过自动清理，0 = 不按天数清理）
-AUDIT_LOG_RETENTION_DAYS = 30
-# 设备遥测保留天数（超过自动清理，0 = 不清理）
-DEVICE_TELEMETRY_RETENTION_DAYS = 30
 
 #----------------------Auth 缓存----------------------------------------------#
 # 用户查询缓存 TTL（秒）
@@ -204,42 +197,9 @@ DEVICE_MAX_SLEEP_SECONDS = 21600
 DEVICE_PAIR_TTL_SECONDS = 600
 # 单个配对会话的配对码最多被输错几次，超限即作废（防 8 位码被暴力枚举）
 DEVICE_PAIR_MAX_ATTEMPTS = 5
-# 设备面每分钟请求上限，按 `device:<id>` 作用域计数：不与同 NAT 下的其他设备共用。
-# 未鉴权的 register / pair 入口按来源 IP 复用这个上限。
-# 注意这只是频次限制；属主账号的计次额度（quota_limit / quota_period）由取图链路
-# 单独消耗，见 modules/device/routes.py 的 `consume_account_quota`。
+# 设备面每分钟请求上限，按 `device:<id>` 作用域计数：既不占属主账号的 evkey 配额，
+# 也不与同 NAT 下的其他设备共用额度。未鉴权的 register / pair 入口按来源 IP 复用这个上限。
 DEVICE_RATE_PER_MINUTE = 20
-# 睡眠抖动：在算出的间隔上做 ±N% 的随机偏移，避免大批设备在整点同时醒来。
-# 0 = 关闭。上限/下限仍按 DEVICE_MIN_SLEEP_SECONDS / DEVICE_MAX_SLEEP_SECONDS 钳制。
-DEVICE_SLEEP_JITTER_PCT = 5
-# 失败响应也要给设备一个「睡多久」的值，否则额度耗尽 / 没配渲染项时固件会热循环重试。
-# 401/403 用更长的值，避免令牌失效后每秒撞一次鉴权；429 用较短值，额度恢复后能尽快回连。
-DEVICE_ERROR_SLEEP_SECONDS = 300
-DEVICE_AUTH_ERROR_SLEEP_SECONDS = 600
-DEVICE_RATE_LIMIT_SLEEP_SECONDS = 60
-# 电池 / 信号自适应：设备上报值低于阈值时把间隔乘上对应系数（两者取较大值）。
-# 电池 <= 0 表示设备没上报，不参与判断；rssi 同理（0 不是合法 dBm）。
-DEVICE_LOW_BATTERY_MV = 3400
-DEVICE_LOW_BATTERY_SLEEP_FACTOR = 2.0
-DEVICE_WEAK_RSSI_DBM = -85
-DEVICE_WEAK_RSSI_SLEEP_FACTOR = 1.5
-# 幂等键保留时长（秒）：同一个 Idempotency-Key 在这段时间内重试会拿到同一份响应。
-DEVICE_IDEMPOTENCY_TTL_SECONDS = 86400
-# 设备签入是否需管理员审批：False = 用户输入配对码即当场绑定（自动加入，默认）；
-# True = 转人工审核，落到「设备 → 设备签入审批」里等管理员批准后才真正归属该账号。
-DEVICE_APPROVAL_REQUIRED = False
-# 离线告警：设备超过这么多分钟没有回连（status / image / telemetry 任一路径都算）就
-# POST 一份 JSON 到 DEVICE_ALERT_WEBHOOK。0 = 关闭；同一段连续离线只告一次，
-# 设备回连后再次掉线会重新告警（去重标记见 modules/device/alerts.py）。
-DEVICE_OFFLINE_ALERT_MINUTES = 0
-# 设备离线告警 webhook（URL，空 = 关闭）。可对接钉钉 / 飞书 / 自建网关的转发脚本。
-DEVICE_ALERT_WEBHOOK = ''
-
-#----------------------高级模式-----------------------------------------------#
-# 在「设置 → 关于」里输入这段口令即可解锁一批隐藏的危险设置（设备高级项与一批底层调优项）。
-# 这是**知情门槛**而非安全边界：真正的高危操作仍受管理组分页权限管控，口令只是让不熟的
-# 管理员不误触。管理员解锁后可在面板里改它。
-ADVANCED_MODE_KEY = 'eink123'
 
 #----------------------备份与恢复-----------------------------------------------#
 # 上传恢复时接受的备份文件大小上限（MB）。整库会被读进内存做校验再落盘，因此必须有上限；

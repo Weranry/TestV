@@ -91,50 +91,22 @@ def lang_of(request):
     return current_lang(header)
 
 
-def t_req(request, msg_key, **fmt):
+def t_req(request, key, **fmt):
     """接口里取词：按当前请求的语言翻。没有 request 可用时（后台线程、定时任务）
-    直接用 `t(msg_key, lang)`，不要把 request 传成 None 假装能翻。
-
-    首个形参刻意不叫 `key`：业务占位参数里就有 `key=`（如 `api.err_param_max` 的
-    `{key}`），同名会让 `t_req(request, 'api.err_param_max', key='days')` 直接
-    TypeError——`ApiError` 那边同样避开了 `key`，这里保持一致。
-    """
-    return t(msg_key, lang_of(request), **fmt)
+    直接用 `t(key, lang)`，不要把 request 传成 None 假装能翻。"""
+    return t(key, lang_of(request), **fmt)
 
 
-def _schema_text(key):
-    """`config.lbl.*` / `config.desc.*` 的中文文案由 config_schema 派生（唯一来源）。
-
-    catalog_zh 不再手抄这两类键：配置项的键 / 标签 / 说明只在 config_schema.py 写一份。
-    英文缺失时也回落到这里，与 t() 既有的「缺键回落中文」口径一致。
-    """
-    if key.startswith('config.lbl.'):
-        field, name = 'label', key[len('config.lbl.'):]
-    elif key.startswith('config.desc.'):
-        field, name = 'desc', key[len('config.desc.'):]
-    else:
-        return None
-    from modules.admin.config_schema import CONFIG_LABELS
-    item = CONFIG_LABELS.get(name)
-    return item.get(field) if item else None
-
-
-def t(msg_key, lang=None, **fmt):
+def t(key, lang=None, **fmt):
     """取词。缺键回落中文，再缺就把键名原样返回（宁可露出键名，也不显示空白）。
 
     `fmt` 里的 `{name}` 占位符做简单替换：只支持具名参数，不做格式化语法
     （文案里出现 `{}` 或 `{0}` 时不该让整页渲染炸掉）。
-
-    首个形参不叫 `key` 的理由与 `t_req` 相同：让位给业务占位参数 `key=`。
     """
     cat = _CATALOGS.get(lang) or _ZH
-    text = cat.get(msg_key)
-    if text is None and cat is not _ZH:
-        text = _ZH.get(msg_key)
+    text = cat.get(key)
     if text is None:
-        text = _schema_text(msg_key)
-    if text is None:
-        text = msg_key
+        text = _ZH.get(key, key)
     if fmt:
         text = re.sub(r'\{(\w+)\}', lambda m: str(fmt.get(m.group(1), m.group(0))), text)
     return text

@@ -5,9 +5,8 @@ function checkLoginStatus(){
     if(!d.authenticated){window.location.href='/login';return}
     if(!d.is_admin){window.location.href='/admin';return}
     var nm=((d.user&&d.user.name)||'').trim();
-    /* 名字写进三处：侧栏栏底（有侧栏时）、顶栏右侧那组（没侧栏时）、以及「我的」页顶栏的
-       用户名（只在「我的」页露出，见 paintNotifSlot）；哪一份可见由 .shell.nonav 与当前分页决定 */
-    ['nav-user-name','top-user-name','top-name'].forEach(function(id){
+    /* 名字与头像各两份：有侧栏时在栏底，没侧栏时在顶栏右侧（哪一份可见由 .shell.nonav 决定） */
+    ['nav-user-name','top-user-name'].forEach(function(id){
       var el=document.getElementById(id);if(el)el.textContent=nm;
     });
     var ini=nm?nm.charAt(0).toUpperCase():'?';
@@ -78,14 +77,13 @@ var SHOW_ANNOUNCEMENT={{SHOW_ANNOUNCEMENT}};
 checkLoginStatus();
 if(tabAllowed('overview'))refreshOverview();
 if(tabAllowed('users'))checkApps();
-if(tabAllowed('devices'))checkDeviceSignins();
 if(tabAllowed('plugins')||tabAllowed('test'))loadPluginOptions();
 if(tabAllowed('test'))syncTestMode();
 
 /* 自动刷新的分页与间隔：只覆盖「数据会自己变」的页（概览/插件/用户/日志/统计/我的）。
    缓存 / 定时 / 备份是快照式列表，切页时与每次操作后各刷一次就够；配置页与测试页不自动
    刷新，否则会覆盖正在编辑的内容。REFRESH 里没有的页，refreshActiveSection 也不处理。 */
-var REFRESH={overview:{{ADMIN_STATUS_REFRESH}},plugins:{{ADMIN_PLUGINS_REFRESH}},users:{{ADMIN_APPS_REFRESH}},devices:{{ADMIN_APPS_REFRESH}},logs:{{ADMIN_LOGS_REFRESH}},stats:{{ADMIN_STATS_REFRESH}},account:{{ADMIN_STATUS_REFRESH}}};
+var REFRESH={overview:{{ADMIN_STATUS_REFRESH}},plugins:{{ADMIN_PLUGINS_REFRESH}},users:{{ADMIN_APPS_REFRESH}},logs:{{ADMIN_LOGS_REFRESH}},stats:{{ADMIN_STATS_REFRESH}},account:{{ADMIN_STATUS_REFRESH}}};
 /* 「我的」页自己也有一条 15 秒固定间隔轮询，而这里的 tick 只要 REFRESH.account>0 就已经
    在刷同一批数据（refreshAccount 覆盖得还更全）。把这个结论告诉 account_page，
    让它别再开第二条——同一份数据每 15 秒被拉两遍纯属白跑 */
@@ -96,7 +94,6 @@ function refreshActiveSection(){
   if(_activeTab==='overview')refreshOverview();
   else if(_activeTab==='plugins')refreshPlugins();
   else if(_activeTab==='users')refreshUserSection();
-  else if(_activeTab==='devices')refreshDeviceSection();
   else if(_activeTab==='logs')refreshLogView();
   else if(_activeTab==='stats')refreshStats();
   else if(_activeTab==='account')refreshAccount();

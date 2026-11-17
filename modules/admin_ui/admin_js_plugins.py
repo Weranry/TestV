@@ -17,14 +17,14 @@ function refreshPlugins(){
     ps.forEach(function(p){if(!p.enabled)disabledCount++});
     var dot=document.getElementById('plugins-dot');
     dot.style.display=disabledCount>0?'inline-block':'none';
-    dot.title=T('plugin.disabled_count','{n} 已禁用',{n:disabledCount});
+    dot.title=T('plugin.disabled_count','{n} 个已禁用',{n:disabledCount});
     var h='<table><thead><tr><th>'+T('nav.plugins','插件')+'</th><th>'+T('stats.col_version','版本')+'</th><th>'+T('plugin.col_desc','描述')+'</th><th class="num">'+T('plugin.col_routes','路由')+'</th><th class="col-state">'+T('user.legend_status','状态')+'</th><th class="col-act">'+T('core.col_action','操作')+'</th></tr></thead><tbody>';
     ps.forEach(function(p){
       h+='<tr><td class="strong">'+esc(p.name)+'</td>';
       // 版本与依赖来自 plugin.json；没写清单的插件不能装作有版本，直接说明未声明
       if(p.manifest_missing)h+='<td class="dim" title="'+T('plugin.no_manifest_tip','该插件没有 plugin.json')+'">'+T('plugin.no_manifest','未声明清单')+'</td>';
       else h+='<td class="mono" title="'+esc(manifestTip(p))+'">'+esc(p.version||'—')+'</td>';
-      h+='<td class="dim">'+esc(p.description||'')+'</td><td class="dim num">'+T('plugin.route_count','{n}',{n:p.route_count})+'</td>';
+      h+='<td class="dim">'+esc(p.description||'')+'</td><td class="dim num">'+T('plugin.route_count','{n} 条',{n:p.route_count})+'</td>';
       h+='<td><span class="sw'+(p.enabled?' on':'')+'" data-act="plugin-toggle" data-name="'+esc(p.name)+'"><span class="sw-track"></span>'+(p.enabled?T('user.enabled','启用'):T('user.disabled','禁用'))+'</span></td>';
       h+='<td><div class="acts"><button class="btn btn-sm" data-act="plugin-routes" data-name="'+esc(p.name)+'">'+T('plugin.col_routes','路由')+'</button>'+
         '<button class="btn btn-sm" data-act="plugin-config" data-name="'+esc(p.name)+'">'+T('nav.config','设置')+'</button>'+
@@ -46,7 +46,7 @@ function refreshPlugins(){
 }
 /* 热重载：重扫插件目录 + 重建路由 + 清插件代码缓存，改完插件代码不必重启服务 */
 function reloadPlugins(btn){
-  uiConfirm({title:T('plugin.reload_title','热重载插件'),message:T('plugin.reload_confirm','重扫插件目录并重建路由？'),confirmText:T('plugin.reload_btn','重载')}).then(function(ok){
+  uiConfirm({title:T('plugin.reload_title','热重载插件'),message:T('plugin.reload_confirm','将重扫插件目录并重建路由，确定继续？'),confirmText:T('plugin.reload_btn','重载')}).then(function(ok){
     if(!ok)return;
     btnBusy(btn,true);
     R.post('/admin/api/plugins/reload',{}).then(function(d){
@@ -296,8 +296,8 @@ function saveAllPluginCfg(pname,btn){
   items.forEach(function(it){
     R.post('/admin/api/plugins/'+encodeURIComponent(pname)+'/config',{key:it.key,value:it.value}).then(function(d){
       done++;if(d.success)ok++;
-      if(done===total){btnBusy(btn,false);toast(T('plugin.saved_items','已保存 {ok}/{total}',{ok:ok,total:total}),ok===total?'success':'warn');m.remove();showPluginConfig(pname)}
-    }).catch(function(){done++;if(done===total){btnBusy(btn,false);toast(T('plugin.saved_items','已保存 {ok}/{total}',{ok:ok,total:total}),'warn');m.remove();showPluginConfig(pname)}});
+      if(done===total){btnBusy(btn,false);toast(T('plugin.saved_items','已保存 {ok}/{total} 项',{ok:ok,total:total}),ok===total?'success':'warn');m.remove();showPluginConfig(pname)}
+    }).catch(function(){done++;if(done===total){btnBusy(btn,false);toast(T('plugin.saved_items','已保存 {ok}/{total} 项',{ok:ok,total:total}),'warn');m.remove();showPluginConfig(pname)}});
   });
 }
 /* ================= 接口测试 ================= */

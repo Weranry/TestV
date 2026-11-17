@@ -65,7 +65,7 @@ def check_format_allowed(img_format, group_id=None):
     """
     img_format = canonical_format(img_format)
     if img_format in config.IMAGE_FORMAT_BLACKLIST:
-        raise ParamError('api.err_format_forbidden', format=img_format.upper())
+        raise ParamError(f'{img_format.upper()} 格式已被框架层面禁止生成')
     if group_id is not None:
         from modules.database.access import check_group_param_access
         if not check_group_param_access(group_id, f'format_{img_format}'):
@@ -78,8 +78,7 @@ def ensure_format_supported(img_format):
     """格式是否在输出注册表内（数组格式族走位流打包，单独判定）"""
     if is_array_format(img_format) or img_format in _FORMAT_REGISTRY:
         return
-    raise ParamError('api.err_format_unsupported', format=img_format,
-                         supported=', '.join(supported_formats()))
+    raise ParamError(f'不支持的输出格式: {img_format}，支持 ' + ', '.join(supported_formats()))
 
 
 def supported_formats():

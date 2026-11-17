@@ -6,42 +6,6 @@ _REGISTER_LINK_RE = re.compile(r'\s*<!--\s*register-link:start\s*-->.*?<!--\s*re
 
 def _app_state(r): return r.app.state
 
-
-def is_super_admin(request):
-    """是否「系统主管理员」：内置管理组里最早创建的兜底管理账号。
-
-    它是唯一允许做整库级操作（恢复备份、恢复出厂）与管理员账号/管理组管理的账号；
-    其他管理组账号即便拿到后台分页权限也只是普通管理员。主管理员在
-    user_routes 里被禁止改组/删除，因此这个判定不会随日常操作漂移。
-
-    直接调用（单元测试的最小请求桩没有 state）时返回 True——这些测试本来就是
-    在无鉴权环境里跑整个流程；真实请求一定带 state。
-    """
-    state = getattr(request, 'state', None)
-    if state is None:
-        return True
-    user = getattr(state, 'user', None)
-    if not isinstance(user, dict):
-        return False
-    from modules.database.groups import is_admin_category
-    if not is_admin_category(user.get('group_category')):
-        return False
-    try:
-        from modules.database.accounts import default_admin_account_id
-        return user.get('id') == default_admin_account_id()
-    except Exception:
-        return False
-
-
-def super_admin_only(request):
-    """系统主管理员专属操作的统一拒绝出口（None = 放行）"""
-    if is_super_admin(request):
-        return None
-    from modules.errors.errors import error_response
-    from modules.i18n.registry import t_req
-    return error_response(t_req(request, 'msg.super_admin_only'), 403)
-
-
 async def _body(request):
     """安全解析 JSON 请求体：解析失败返回 None，避免每处都写一遍裸 except"""
     try:

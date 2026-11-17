@@ -1,15 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "framework": "fastapi",
-  "buildCommand": "for py in python3.12 python3.13 python3.14 python3 python; do command -v \"$py\" >/dev/null 2>&1 && \"$py\" -c 'import fastapi, pydantic_core, PIL' >/dev/null 2>&1 && echo \"explore_static: using $py\" && \"$py\" -B -m modules.register.explore_static --live && exit 0; done; rm -rf /tmp/einkviews-explore; python3 -m pip install -q --target /tmp/einkviews-explore -r requirements.txt && echo 'explore_static: using temp deps /tmp/einkviews-explore' && PYTHONPATH=/tmp/einkviews-explore python3 -B -m modules.register.explore_static --live || echo 'explore_static: WARNING skipped, keeping the committed public/pages/explore.html'",
+  "buildCommand": "python3 -B -m modules.register.explore_static --live || python -B -m modules.register.explore_static --live || echo 'explore_static: WARNING skipped, keeping the committed public/pages/explore.html'",
   "rewrites": [
-    {
-      "source": "/",
-      "destination": "/pages/index.html"
-    },
-    {
-      "source": "/explore",
-      "destination": "/pages/explore.html"
-    }
+    { "source": "/", "destination": "/pages/index.html" },
+    { "source": "/explore", "destination": "/pages/explore.html" }
   ]
 }

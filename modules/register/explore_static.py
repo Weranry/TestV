@@ -96,10 +96,8 @@ def build_static_html(lang='en', live=False):
     inner = build_explore_html(_StaticRequest(app, lang), include_groups=False,
                                include_plugins=live)
     # 与运行时同一个出口渲染：取词、共享 UI 注入、语言包注入都只有这一处口径，
-    # 生成版与线上版才不会出现「某个标记没被替换」这类只有一版才有的差异。
-    # 但静态版由边缘直出、没有 Python 服务兜底，样式与脚本必须留在页内
-    # （不能指向 /admin/assets/），故关闭外链化。
-    body = panel_html(inner, lang, externalize_assets=False).body.decode('utf-8')
+    # 生成版与线上版才不会出现「某个标记没被替换」这类只有一版才有的差异
+    body = panel_html(inner, lang).body.decode('utf-8')
     return _strip_local_blocks(body)
 
 

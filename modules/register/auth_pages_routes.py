@@ -15,7 +15,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
 from modules.admin.common import _REGISTER_LINK_RE
-from modules.admin_ui.templates import LOGIN_HTML, REGISTER_HTML, RESET_HTML
+from modules.admin_ui.other_pages import LOGIN_HTML, REGISTER_HTML, RESET_HTML
 from modules.admin_ui.panel_render import panel_html, req_lang
 
 router = APIRouter(tags=['auth-pages'])

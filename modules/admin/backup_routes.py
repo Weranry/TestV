@@ -26,7 +26,6 @@ from fastapi.responses import FileResponse, JSONResponse
 from starlette.background import BackgroundTask
 
 import config
-from modules.admin.common import super_admin_only
 from modules.errors.errors import error_response
 from modules.i18n.registry import t_req
 from modules.utils import body_limit
@@ -365,10 +364,6 @@ def _require_db(request=None):
 @router.delete('/api/backup/files/{name}')
 async def admin_backup_delete_file(name: str, request: Request = None):
     """删除 `data/backups/` 下的一份备份（文件名取自列表，越界与不存在的都当 404）"""
-    # 快照是恢复时唯一的退路，删它和恢复同属整库级操作
-    denied = super_admin_only(request)
-    if denied:
-        return denied
     db_file, err = _require_db(request)
     if err:
         return err
@@ -390,9 +385,6 @@ async def admin_backup_download_file(name: str, request: Request = None):
     与 `/api/backup/download`（导出**当前**库到临时文件）不同，这里直接流式返回目录里
     的正式文件，所以**不能**挂后台删除任务——那份快照要留在原地继续可用。
     """
-    denied = super_admin_only(request)
-    if denied:
-        return denied
     db_file, err = _require_db(request)
     if err:
         return err
@@ -405,9 +397,6 @@ async def admin_backup_download_file(name: str, request: Request = None):
 @router.post('/api/backup/files/{name}/restore')
 async def admin_backup_restore_file(name: str, request: Request):
     """用 data/backups/ 里的一份快照整体替换当前库（不必先下载再上传）"""
-    denied = super_admin_only(request)
-    if denied:
-        return denied
     db_file, err = _require_db(request)
     if err:
         return err
@@ -445,10 +434,6 @@ async def admin_backup_restore_file(name: str, request: Request):
 @router.post('/api/backup/cleanup')
 async def admin_backup_cleanup(request: Request = None):
     """按保留策略立刻清理一次（保留份数 / 天数都在「备份配置」里改，0 = 不限）"""
-    # 清理会批量删快照，与逐份删除同一条口径
-    denied = super_admin_only(request)
-    if denied:
-        return denied
     db_file, err = _require_db(request)
     if err:
         return err
@@ -461,10 +446,6 @@ async def admin_backup_cleanup(request: Request = None):
 @router.get('/api/backup/download')
 async def admin_backup_download(request: Request = None):
     """导出一致性快照并直接下载；临时文件由响应流读完后的后台任务删除"""
-    # 整库导出等于把全部账号口令哈希与明文 evkey 交给下载方，与恢复一样只限内置管理组
-    denied = super_admin_only(request)
-    if denied:
-        return denied
     db_file, err = _require_db(request)
     if err:
         return err
@@ -495,9 +476,6 @@ async def admin_backup_download(request: Request = None):
 @router.post('/api/backup/restore')
 async def admin_backup_restore(request: Request):
     """上传备份并整体替换当前库。成功后必须重新登录（恢复出的账号体系可能完全不同）"""
-    denied = super_admin_only(request)
-    if denied:
-        return denied
     db_file, err = _require_db(request)
     if err:
         return err
