@@ -24,7 +24,7 @@ import os
 from fastapi import APIRouter, Request
 from fastapi.responses import HTMLResponse
 
-from modules.admin_ui.explore_page import EXPLORE_HTML
+from modules.admin_ui.templates import EXPLORE_HTML
 from modules.admin_ui.panel_render import panel_html, req_lang
 from modules.utils.route_walk import iter_routes
 

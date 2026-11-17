@@ -16,7 +16,7 @@ router = APIRouter()
 
 def parse_routes_param(param):
     if not param:
-        raise ParamError('routes参数不能为空')
+        raise ParamError('api.err_routes_empty')
     items = []
     parts = param.split(',')
     for part in parts:
@@ -49,7 +49,7 @@ def parse_routes_param(param):
         items.append(((view_path, size), weight, param_dict))
     filtered = [i for i in items if i[1] > 0]
     if not filtered:
-        raise ParamError('所有权重均为0或未设置，无法选择视图')
+        raise ParamError('api.err_weight_zero')
     return filtered
 
 
@@ -79,7 +79,7 @@ def _allowed_choices(request, choices, group_id):
                 continue
         allowed.append(((view_path, size), weight, param_dict))
     if not allowed:
-        raise ParamError('没有可用的视图：候选插件/路由已被禁用，或当前用户组无权访问')
+        raise ParamError('api.err_no_view')
     return allowed
 
 
@@ -87,7 +87,7 @@ def _allowed_choices(request, choices, group_id):
 async def random_views(request: Request):
     routes_param = request.query_params.get('routes')
     if not routes_param:
-        raise ParamError('缺少 routes 参数')
+        raise ParamError('api.err_routes_missing')
 
     from modules.prerender.params import (
         explicit_value, parse_cmode_arg, parse_invert_arg, parse_rotate_arg,
@@ -116,7 +116,7 @@ async def random_views(request: Request):
         mod = importlib.import_module(mod_path)
     except ModuleNotFoundError as e:
         plog.exception(f'视图 {mod_path} 不存在')
-        raise ParamError(f'视图 {mod_path} 不存在: {str(e)}')
+        raise ParamError('api.err_view_missing', view=mod_path, msg=e)
 
     plugin_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), f'../../plugins/{plugin}'))
     plugin_config = load_plugin_config(plugin, plugin_dir)
@@ -144,7 +144,7 @@ async def random_views(request: Request):
         else (plugin_default_invert if plugin_default_invert is not None else config.DEFAULT_INVERT))
 
     if not hasattr(mod, 'generate_image'):
-        raise ParamError(f'视图 {mod_path} 未实现 generate_image')
+        raise ParamError('api.err_view_no_gen', view=mod_path)
 
     try:
         if group_id is not None:
@@ -153,7 +153,7 @@ async def random_views(request: Request):
                            ('invert', invert_arg or params.get('invert')),
                            ('cmode', cmode)):
                 if pv is not None and not check_group_param_access(group_id, pk):
-                    raise ParamError(f'用户组禁止使用{pk}参数')
+                    raise ParamError('api.err_group_param', key=pk)
         from modules.app_core import get_render_semaphore
         from modules.generate_views import render_metrics
         user = getattr(request.state, 'user', None) or {}
@@ -180,7 +180,7 @@ async def random_views(request: Request):
     except Exception as e:
         plog.exception(f'随机图片生成失败: {e}')
         # 同 auto_view_routes：渲染失败是服务端的问题，必须是 500 而不是 400
-        raise RenderError(f'随机图片生成失败: {str(e)}')
+        raise RenderError('api.err_random_failed', msg=e)
 
     img_format = request.query_params.get('format', config.DEFAULT_IMAGE_FORMAT)
     # 编码也是 CPU 密集，下放线程

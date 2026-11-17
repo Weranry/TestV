@@ -33,7 +33,7 @@ python -B run.py -prod  # 生产模式：启用鉴权，其余同 dev
 
 包含全部能力：资源缓存、SQLite 数据库（账号/用户组/权限/统计）、请求日志、管理面板 `/admin`。本地测试和自托管生产都用这个入口。
 
-存活探针 `GET /healthz`（**只在本地链路注册**，Vercel 侧没有）返回 `{"success":true,"status":"ok","mode":"dev","version":"1.0.18"}`。它不查库、不渲染、不写请求日志、不占限流额度，也不需要 evkey，专门给 Uptime Kuma / systemd / Docker healthcheck 这类外部监控轮询用——用 `/` 去探活会把 `request_logs` 刷满、还可能被限流。
+存活探针 `GET /healthz`（**只在本地链路注册**，Vercel 侧没有）返回 `{"success":true,"status":"ok","mode":"dev","version":"1.0.30"}`。它不查库、不渲染、不写请求日志、不占限流额度，也不需要 evkey，专门给 Uptime Kuma / systemd / Docker healthcheck 这类外部监控轮询用——用 `/` 去探活会把 `request_logs` 刷满、还可能被限流。
 
 Prometheus 指标出口 `GET /metrics`（同样只在本地链路注册，Prometheus 文本格式，手写于 `modules/utils/metrics.py`，不引第三方库）与 `/healthz` 同源：免鉴权、不占限流额度、不写请求日志。默认完全公开，配 `METRICS_TOKEN` 后需带 `?token=` 或 `Authorization: Bearer`，否则 403。指标覆盖进程（模式/版本/运行时长/RSS/库大小）、渲染（并发占用/累计/缓存命中/最近与最慢耗时）、插件请求数、限流拒绝数、共享后端与 leader 状态、日志队列、字体缓存、**鉴权缓存命中率**、预渲染缓存。每个请求还会带 `X-Request-ID`（请求头已有则复用）并在响应头回写，错误堆栈前会打一行 `[req=xxx] METHOD PATH STATUS ms`。
 
@@ -59,7 +59,7 @@ data/einkviews.db-shm    # 共享内存索引
 - **不开缓存**：`modules/cache/cache.py` 被停用，字体每次实时加载，LRU 池一个条目都不写
 - **不起后台线程**：无统计刷盘线程、无请求日志中间件、无限流中间件、无管理面板路由
 - **首页走边缘**：`vercel.json` 把 `/` 直接指到静态文件 `public/pages/index.html`，该请求完全不经过 Python 函数（零冷启动）。这个文件是「Vercel 静态直出版」——凡是随环境变化的文案/入口，文件里存的都是 **Vercel 版**并用 `<!-- 名字:start -->…<!-- 名字:end -->` 锚点包住，所以静态直出时不会出现指向 `/login` 的死链（`/admin` 路由只在 `run.py` 下存在）。目前有两个锚点：副标题 `env-note`（Vercel 上显示「eInkViews is working on Vercel」，本地显示「eInkViews is working!」）与 footer `admin-entry`（静态文件里为空，本地才注入「登录 / 注册」）；本地 dev/prod 下 `/` 路由按 `template_routes._LOCAL_BLOCKS` 改写这些块
-- 鉴权走**单 key**：只需配置环境变量 `EVKEY`，请求带上 `evkey`（请求头或查询参数）即可
+- 鉴权走**单 key**：只需配置环境变量 `EVKEY`，请求头带上 `evkey` 即可（**不再接受 URL 查询参数**：query 会进浏览器历史、Referer 与反代日志，等同凭据泄漏；旧客户端请改为请求头）
 - 图像处理全部使用 `io.BytesIO`，禁止本地临时文件写入
 - **装的是最小依赖集**：Vercel 构建只装 `requirements.txt`（`@vercel/python` 只认它），里面只有 Serverless 链路真正用得到的库——`cachetools` / `uvicorn` / `PyJWT` / `redis` 都在 `requirements-local.txt`；而且四者都只在真正需要时才被导入（`cachetools` 在字体与鉴权缓存的构建函数内、`uvicorn` 在 `run_core` 函数内、`PyJWT` 在会话签发/校验函数内、`redis` 在配置了 `REDIS_URL` 且建连时），Serverless 侧一律碰不到。这条保证由 `.trae/tests/test_app_smoke.py` 的 `ServerlessEntryTest` 在独立进程里断言（`app.py` 的导入链拿不到 redis / uvicorn / jwt / cachetools / `modules.run_core` / 本地后台线程模块），以后有人加一句模块级可选依赖导入就会红
 - 本地调试不要用 `app.py` 启动，也不要把依赖数据库/缓存的功能加进 Vercel 链路
@@ -137,7 +137,7 @@ python -B -m unittest discover -s .trae/tests
 - 管理面板 `/admin`（仅 `run.py` 启用时）：插件/路由开关、用户与权限、请求日志、缓存、统计、全局配置、定时预渲染
 - 用户组级限额：每分钟请求速率与请求配额。配额有两种模式，**所有用户组都可自由切换**——「按时间周期」（每日/每周/每月/每年，到期自动重置）与「按次总量」（该账号一共就这么多，用完即止、永不重置）。`0` = 不限，按账号独立计数、同账号下多个 evkey 共享；内置 `Try` 试用组即「按次总量」模式（默认 1000 次）。两种模式只作用于配额，evkey 上限/并发/速率不受影响
 - **额度发放与重置**（面板账号列表「额度」按钮，`GET/POST /admin/api/accounts/{id}/quota[/grant|/reset]`）：实际额度 = 用户组配额 + 账号级发放额，可一键 `+500 / +1000 / +2000` 或自定义次数（填负数即回收，调整后总额度不得小于 1 次）；发放额记在账号上、**跨周期保留**，按时间周期的账号还可「手动重置」把本周期已用归零（不收回已发放额度）。到期自动重置 = `used` 归零且未用部分不结转（**额度不累加**）。所有人为操作落到 `account_quota_logs`，管理端弹窗与用户控制台「额度记录」卡都能看到（自动重置不入账）
-- 普通用户登录后进入 `/login` 对应的个人控制台，可查看自己的额度与额度记录、**权限记录**、插件/路由权限并管理 API Key。个人控制台与管理面板「我的」页**共用同一份卡片与脚本**（`modules/admin_ui/account_page.py`），两边唯一的差别是个人控制台多一张**站内信**卡片（管理端的站内信在概览页）。页头与其余分页统一为左上角「标题 + 一行说明」（`我的` / `账号信息、额度与会员、API Key 与登录密码`），账号名、用户组、UID 三项由第一张「账号信息」卡承载；页面宽度与其余分页一致（1280px）
+- 普通用户登录后进入 `/login` 对应的个人控制台，可查看自己的额度与额度记录、**权限记录**、插件/路由权限并管理 API Key。个人控制台与管理面板「我的」页**共用同一份卡片与脚本**（`modules/admin_ui/js/account.js`，卡片在 `html/account.cards.html`），两边唯一的差别是个人控制台多一张**站内信**卡片（管理端的站内信在概览页）。页头与其余分页统一为左上角「标题 + 一行说明」（`我的` / `账号信息、额度与会员、API Key 与登录密码`），账号名、用户组、UID 三项由第一张「账号信息」卡承载；页面宽度与其余分页一致（1280px）
 - **申请中的 evkey 也列在「我的 API Key」里**：开启「EVKey 申请需审批」时，提交完回到列表能看到一行「待生成 / 审批中」（琥珀圆点），由 15 秒轮询自动换成批准后的真 Key，不会出现「提交完看不到任何东西」
 - 密码框右侧是**眼睛图标**按钮（内联 SVG，随手型切换「显示 / 隐藏」），登录、注册、首次改密与「我的」页改密四处同一套
 - **账号 UID**：每个账号注册时自动分配一个对外编号 `uid`（注册顺序，从 10000 起、不设位宽），面板账号列表展示 UID 并默认按其升序排序（可切换按用户组 / 名字）。**登录可用账号名或 UID**（纯数字一律按 UID 解释），因此账号名不能是纯数字（注册 / 建号 / 改名三处都会拒绝）

@@ -21,8 +21,12 @@ TAB_PREFIXES = {
     '/admin/api/groups': frozenset(('users',)),
     '/admin/api/activation-codes': frozenset(('users',)),
     '/admin/api/applications': frozenset(('users',)),
+    '/admin/api/password-resets': frozenset(('users',)),
     '/admin/api/evkeys': frozenset(('users',)),
     '/admin/api/evkey': frozenset(('users',)),
+    # 设备独立成页：「设备总列表」与「设备签入审批」都归 devices 分页
+    '/admin/api/device-signins': frozenset(('devices',)),
+    '/admin/api/devices': frozenset(('devices',)),
     # 插件列表同时被用户页的「权限设置」弹窗读取；快速测试在插件页与测试页各有一处入口
     '/admin/api/plugins': frozenset(('plugins', 'users')),
     # 上传安装是插件页独有的管理员级操作（包内代码会以服务进程权限执行），
@@ -43,10 +47,14 @@ TAB_PREFIXES = {
     '/admin/api/config': _SHARED,
     # 备份/恢复只在「备份」页：整库替换是不可逆操作，不该跟着共用配置图的 _SHARED 一起放开
     '/admin/api/backup': frozenset(('backup',)),
+    # 恢复出厂设置同样只在「备份」页，且接口内部再收紧到内置管理组
+    '/admin/api/factory': frozenset(('backup',)),
     # 运行时信息 / 更新 / 重启都挂在「设置」页的「关于」下，与配置项同一个分页
     '/admin/api/runtime': frozenset(('config',)),
     '/admin/api/update': frozenset(('config',)),
     '/admin/api/system': frozenset(('config',)),
+    # 高级模式解锁：入口在「设置 → 关于」，与配置项同一个分页
+    '/admin/api/advanced': frozenset(('config',)),
 }
 
 # 少数接口的归属由**路径后缀**决定：插件名是路径段，写不成固定前缀。

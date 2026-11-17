@@ -1,8 +1,8 @@
-from fastapi import APIRouter, Request
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 
 from modules.admin_ui.assemble import ADMIN_HTML
-from modules.admin_ui.other_pages import CHPASS_HTML
+from modules.admin_ui.templates import CHPASS_HTML
 from modules.admin_ui.panel_render import panel_html as _panel_html, req_lang as _req_lang
 from modules.auth.auth import decode_session_token
 
@@ -27,6 +27,30 @@ async def legacy_register_page():
 @router.get('/reset-password')
 async def legacy_reset_password_page():
     return RedirectResponse(url='/reset-password', status_code=302)
+
+
+# ---- 页面资源 ----
+# 面板页的样式 / 脚本按内容摘要命名，内容不变名字就不变，因此可以给一年 + immutable。
+# HTML 本身仍是 no-store（见 panel_render._NO_STORE），升级后页面指向新的摘要名，
+# 旧资源自然失效；没命中的名字一律 404，不会被当成路径穿越。
+@router.get('/assets/{name}', include_in_schema=False)
+async def admin_asset(name: str):
+    from modules.admin_ui.assets import get_bundle, is_asset_name
+    if not is_asset_name(name):
+        raise HTTPException(status_code=404)
+    bundle = get_bundle(name)
+    if bundle is None:
+        raise HTTPException(status_code=404)
+    content_type, text = bundle
+    return Response(
+        content=text,
+        media_type=content_type,
+        headers={
+            'Cache-Control': 'public, max-age=31536000, immutable',
+            'ETag': '"%s"' % name.rsplit('.', 2)[1],
+            'X-Content-Type-Options': 'nosniff',
+        },
+    )
 
 
 # ---- Pages ----
@@ -55,7 +79,7 @@ async def admin_dashboard(request: Request):
     from modules.database.groups import allowed_admin_tabs, get_group, is_admin_user
     is_admin = is_admin_user(user)
     from config import (ADMIN_STATUS_REFRESH, ADMIN_PLUGINS_REFRESH, ADMIN_STATS_REFRESH, ADMIN_LOGS_REFRESH, ADMIN_APPS_REFRESH)
-    from modules.admin_ui.other_pages import USER_HTML
+    from modules.admin_ui.templates import USER_HTML
     if is_admin:
         html = ADMIN_HTML
         # 管理组只能在勾选过的分页里操作：把清单注入页面，前端据此隐藏标签页、

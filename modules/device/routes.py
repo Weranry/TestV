@@ -9,11 +9,13 @@
 2. **计时器跑在设备上**。这里只回答「睡多少秒」和「下次请求哪个 URL」，服务端不存排期
    任务、不起 worker、不主动推送；间隔由 `modules/device/schedule.py` 的纯函数现算。
 
-因此响应里的 `sleep_seconds` 是**相对秒数**，`next_url` 是拼好的**绝对地址**。不下发
-`ETag` / `304` / `Cache-Control`：项目政策明确不接受设备端缓存。
+因此响应里的 `sleep_seconds` 是**相对秒数**，`next_url` 是拼好的**绝对地址**。
+取图支持 `ETag` / `If-None-Match` / `304`：图片字节没变时不传 body，只回睡眠指令；
+渲染失败时回退设备上一张成功图，避免墨水屏停在错误页或空白。
 """
 import asyncio
 import datetime
+import hashlib
 import importlib
 import inspect
 import json
@@ -22,12 +24,13 @@ import re
 import time
 
 from fastapi import APIRouter, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 
 import config
 from modules.errors.errors import (
     AccessDeniedError, AuthError, NotFoundError, ParamError, RenderError, error_response,
 )
+from modules.i18n.registry import t_req
 from modules.utils import plog
 from modules.utils.client_ip import client_ip
 from modules.utils.timezone import utc_now_iso
@@ -84,7 +87,7 @@ def _hw_uid(body):
     raw = body.get('hw_uid')
     value = '' if raw is None else str(raw).strip()
     if not _HW_UID_RE.fullmatch(value):
-        raise ParamError('hw_uid 不合法（4-128 位字母 / 数字 / 冒号 / 连字符 / 下划线）')
+        raise ParamError('api.err_hw_uid')
     return value
 
 
@@ -99,18 +102,150 @@ def _loads(raw):
     return value if isinstance(value, dict) else {}
 
 
-async def _rate(scope):
-    """按作用域记一次限流；被拒时返回统一 429 响应，否则 None。
+async def _rate(request, scope):
+    """按作用域记一次频次限流；被拒时返回统一 429 响应，否则 None。
 
     已鉴权的取图按 `device:<id>` 计数，register / pair 这类未鉴权入口按来源 IP 计数：
-    既不占属主账号的 evkey 配额，也不与同 NAT 下的其它设备共用额度。
+    分钟级速率不与同 NAT 下的其它设备或属主账号共用。注意这里只负责**频次**；
+    属主账号的「计次额度」由取图链路单独调用 `consume_account_quota` 消耗。
     """
     from modules.utils.rate_limiter import check_scoped
     limit = int(getattr(config, 'DEVICE_RATE_PER_MINUTE', 20) or 0)
     allowed, _ = await check_scoped(f'device:{scope}', limit, 60)
     if not allowed:
-        return error_response('设备请求过于频繁，请稍后再试', 429)
+        return error_response(t_req(request, 'device.err_rate_limited'), 429)
     return None
+
+
+# ======================== 协议辅助 ========================
+
+_IDEMPOTENCY_RE = re.compile(r'[A-Za-z0-9._:\-]{8,128}')
+_IMAGE_EXT = {
+    'image/png': 'png',
+    'image/jpeg': 'jpg',
+    'image/webp': 'webp',
+    'image/gif': 'gif',
+}
+
+
+def _time_fields():
+    """设备校时字段：ISO 时间给面板/日志看，epoch 给固件直接算偏移。"""
+    return {'server_time': utc_now_iso(), 'server_epoch': int(time.time())}
+
+
+def _idempotency_key(request):
+    """可选的幂等键；格式不对直接 400，避免把任意长文本写进主键。"""
+    raw = (request.headers.get('Idempotency-Key') or '').strip()
+    if not raw:
+        return ''
+    if not _IDEMPOTENCY_RE.fullmatch(raw):
+        raise ParamError('device.err_idem_key')
+    return raw
+
+
+def _etag_for(body):
+    return '"' + hashlib.sha256(body or b'').hexdigest() + '"'
+
+
+def _etag_matches(request, etag):
+    """支持逗号分隔的多个 ETag、弱校验前缀与 `*`。"""
+    header = (request.headers.get('If-None-Match') or '').strip()
+    if not header or not etag:
+        return False
+    if header == '*':
+        return True
+    for item in header.split(','):
+        candidate = item.strip()
+        if candidate.startswith('W/'):
+            candidate = candidate[2:].strip()
+        if candidate == etag:
+            return True
+    return False
+
+
+def _image_headers(sleep_seconds, next_url, etag='', fallback=False):
+    headers = {
+        'X-Device-Sleep': str(int(sleep_seconds)),
+        'X-Device-Next-Url': next_url,
+        'X-Device-Now': utc_now_iso(),
+        'X-Device-Epoch': str(int(time.time())),
+        'Cache-Control': 'no-cache',
+    }
+    if etag:
+        headers['ETag'] = etag
+    if fallback:
+        headers['X-Device-Fallback'] = '1'
+    return headers
+
+
+def _read_file(path):
+    """同步读文件（放到线程池里跑）；用 with 保证句柄关闭，避免测试里的资源告警。"""
+    with open(path, 'rb') as fh:
+        return fh.read()
+
+
+def _last_image_dir():
+    """最近图片与数据库同目录，备份/迁移时跟着一起走；内存库退到用户目录。"""
+    from modules.database.core import db_path
+    path = db_path()
+    if not path or path == ':memory:':
+        base = os.path.join(os.path.expanduser('~'), '.einkviews')
+    else:
+        base = os.path.dirname(os.path.abspath(path))
+    return os.path.join(base, 'device_last')
+
+
+async def _persist_last_image(device, response, etag):
+    """把本张成功图落到磁盘；内容没变就不重写，减少磁盘/闪存磨损。"""
+    body = getattr(response, 'body', b'') or b''
+    if not body:
+        return
+    old_path = str(device.get('last_image_path') or '')
+    if etag == str(device.get('last_image_etag') or '') and old_path and os.path.isfile(old_path):
+        return
+    mime = (response.headers.get('content-type') or 'application/octet-stream').split(';')[0].strip()
+    ext = _IMAGE_EXT.get(mime, 'bin')
+    name = f'device-{device["id"]}.{ext}'
+    path = os.path.join(_last_image_dir(), name)
+
+    def write():
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        tmp = path + '.tmp'
+        with open(tmp, 'wb') as fh:
+            fh.write(body)
+        os.replace(tmp, path)
+        from modules.device import store
+        store.set_device_last_image(device['id'], path, etag, mime, name)
+
+    try:
+        await asyncio.to_thread(write)
+    except Exception as exc:
+        # 回退图只是增强项，写失败不能影响本次取图
+        plog.exception(f'设备最近图片落盘失败: {exc}')
+
+
+async def _serve_last_image(request, device, error_text):
+    """渲染失败时回退上一张成功图；没有可回退文件返回 None。"""
+    path = str(device.get('last_image_path') or '')
+    if not path or not os.path.isfile(path):
+        return None
+    try:
+        body = await asyncio.to_thread(_read_file, path)
+    except OSError as exc:
+        plog.exception(f'设备回退图读取失败: {exc}')
+        return None
+    from modules.device import store
+    from modules.device.schedule import build_next_url, compute_sleep_seconds, jitter_sleep_seconds
+    await asyncio.to_thread(store.touch_device, device['id'], 'fallback',
+                            str(error_text)[:200], client_ip(request), _firmware(request))
+    sleep_seconds = jitter_sleep_seconds(
+        compute_sleep_seconds(dict(device, last_seen_at=utc_now_iso())))
+    etag = str(device.get('last_image_etag') or '') or _etag_for(body)
+    headers = _image_headers(sleep_seconds, build_next_url(request, device), etag, fallback=True)
+    if _etag_matches(request, etag):
+        return Response(status_code=304, headers=headers)
+    return Response(content=body, media_type=str(device.get('last_image_mime') or 'application/octet-stream'),
+                    headers=headers)
 
 
 # ======================== 鉴权与权限 ========================
@@ -122,23 +257,25 @@ async def _authenticate(request):
     命中后再用 `hmac.compare_digest` 复核一次，与账号密码同一套定长比较口径。
     """
     from modules.device import store
-    token = (request.headers.get('X-Device-Token')
-             or request.query_params.get('device_token') or '').strip()
+    # 令牌**只认请求头**：query 里的令牌会进代理日志、Referer 与浏览器历史，
+    # 设备侧没有理由再走 URL 传凭据。老固件若仍拼 ?device_token= 会被当成未鉴权。
+    token = (request.headers.get('X-Device-Token') or '').strip()
     if not token:
-        raise AuthError('缺少设备令牌 X-Device-Token')
+        raise AuthError('device.err_token_missing')
     row = await asyncio.to_thread(store.get_device_by_token_hash, store.hash_device_token(token))
     if row is None or not store.verify_device_token(row, token):
-        raise AuthError('设备令牌无效')
+        raise AuthError('device.err_token_invalid')
     if not int(row.get('enabled') or 0):
-        raise AccessDeniedError('设备已被禁用')
+        raise AccessDeniedError('device.err_disabled')
     return row
 
 
-async def _account_context(device_row):
+async def _account_context(request, device_row):
     """设备所属账号与用户组；未配对（account_id 为空）→ `(None, None)`。
 
     `get_account_by_id` 自带 `enabled = 1` 过滤：账号被禁用后设备随之停摆，
-    不必再单独判一次。
+    不必再单独判一次。顺手把属主写进 `request.state`，请求日志据此把设备取图/状态
+    归到所属账号下（设备请求没有登录态，auth 中间件拿不到 user）。
     """
     account_id = device_row.get('account_id')
     if not account_id:
@@ -146,7 +283,8 @@ async def _account_context(device_row):
     from modules.database.accounts import get_account_by_id
     account = await asyncio.to_thread(get_account_by_id, account_id)
     if not account:
-        raise AccessDeniedError('设备所属账号已被禁用或删除')
+        raise AccessDeniedError('device.err_owner_gone')
+    request.state.device_account_id = int(account_id)
     return int(account_id), account.get('group_id')
 
 
@@ -159,20 +297,20 @@ def _check_render_access(request, plugin_name, route_path, group_id, img_format=
     """
     states = getattr(request.app.state, 'plugin_states', {}) or {}
     if states.get(plugin_name) is not True:
-        raise AccessDeniedError(f'插件 {plugin_name} 当前不可用')
+        raise AccessDeniedError('device.err_plugin_off', plugin=plugin_name)
     disabled_routes = getattr(request.app.state, 'disabled_routes', set()) or set()
     if route_path in disabled_routes:
-        raise AccessDeniedError(f'路由 {route_path} 已禁用')
+        raise AccessDeniedError('device.err_route_off', route=route_path)
     if group_id is not None:
         from modules.database.access import (
             check_group_param_access, check_user_plugin_access, check_user_route_access)
         if not check_user_plugin_access(group_id, plugin_name):
-            raise AccessDeniedError(f'用户组无权访问插件 {plugin_name}')
+            raise AccessDeniedError('api.err_no_plugin', plugin=plugin_name)
         if not check_user_route_access(group_id, route_path):
-            raise AccessDeniedError(f'用户组无权访问路由 {route_path}')
+            raise AccessDeniedError('api.err_no_route', route=route_path)
         for key in explicit_params:
             if not check_group_param_access(group_id, key):
-                raise AccessDeniedError(f'用户组禁止使用{key}参数')
+                raise AccessDeniedError('api.err_group_param', key=key)
     if img_format:
         from modules.generate_views.image_output import check_format_allowed
         check_format_allowed(img_format, group_id)
@@ -226,9 +364,9 @@ async def _render(request, plugin_name, kind, size, params, img_format, group_id
         mod = importlib.import_module(mod_path)
     except ModuleNotFoundError as exc:
         plog.exception(f'视图 {mod_path} 不存在')
-        raise ParamError(f'视图 {mod_path} 不存在: {exc}')
+        raise ParamError('api.err_view_missing', view=mod_path, msg=exc)
     if not hasattr(mod, 'generate_image'):
-        raise ParamError(f'视图 {mod_path} 未实现 generate_image')
+        raise ParamError('api.err_view_no_gen', view=mod_path)
 
     rotate = params.pop('rotate')
     invert = params.pop('invert')
@@ -260,7 +398,7 @@ async def _render(request, plugin_name, kind, size, params, img_format, group_id
         raise
     except Exception as exc:
         plog.exception(f'设备取图渲染失败: {exc}')
-        raise RenderError(f'图片生成失败: {exc}')
+        raise RenderError('api.err_render_failed', msg=exc)
     return await asyncio.to_thread(
         save_image, img, img_format, [plugin_name, kind, size], group_id=group_id)
 
@@ -272,14 +410,25 @@ async def device_register(request: Request):
     """设备首次上电自报身份与屏幕参数，换取「是否需要配对」。
 
     幂等：同一个 hw_uid 反复注册只是更新屏幕参数与固件版本，不产生新档案。
+    带 `Idempotency-Key` 时连响应一起复用：固件超时重投拿到的是同一份结果
+    （尤其是 `device_uid`），不会在两侧产生两个「自认为注册成功」的分支。
     """
-    limited = await _rate('ip:' + client_ip(request))
+    limited = await _rate(request, 'ip:' + client_ip(request))
     if limited is not None:
         return limited
     body = await _body(request)
     hw_uid = _hw_uid(body)
 
     from modules.device import store
+    idem_key = _idempotency_key(request)
+    ttl = int(getattr(config, 'DEVICE_IDEMPOTENCY_TTL_SECONDS', 86400) or 0)
+    # scope 带上 hw_uid：同一把幂等键被不同设备复用时应各自算数，不能互相顶掉
+    scope = f'register:{hw_uid}'
+    if idem_key:
+        cached = await asyncio.to_thread(store.get_idempotent_response, idem_key, scope, ttl)
+        if cached is not None:
+            return cached
+
     fields = {
         'model': _text(body, 'model', 64),
         'width': _dimension(body, 'width'),
@@ -292,16 +441,23 @@ async def device_register(request: Request):
         await asyncio.to_thread(store.create_device, None, hw_uid, **fields)
         device = await asyncio.to_thread(store.get_device_by_hw_uid, hw_uid)
     else:
-        # 屏幕参数以设备自报为准：固件换了屏 / 改了分辨率，这里跟着更新
+        # 屏幕参数以设备自报为准：固件换了屏 / 改了分辨率，这里跟着更新。
+        # 老档案没有名字时补上 MAC（新档案在 create_device 里已经默认写入）
+        if not str(device.get('name') or '').strip():
+            fields['name'] = store.default_device_name(hw_uid)
         await asyncio.to_thread(store.update_device, device['id'], **fields)
 
     bound = bool(device.get('account_id')) and bool(device.get('token_hash'))
-    return {
+    payload = {
         'success': True,
         'device_uid': str(device['id']),
         'pair_required': not bound,
-        'server_time': utc_now_iso(),
+        **_time_fields(),
     }
+    if idem_key:
+        # 只缓存这份不含令牌的结果；重投时原样返回，设备侧的 device_uid 不会漂
+        await asyncio.to_thread(store.save_idempotent_response, idem_key, scope, payload, ttl)
+    return payload
 
 
 @router.post('/pair/request')
@@ -316,23 +472,41 @@ async def device_pair_request(request: Request):
 
     两条路径共用同一张会话表与同一个 `/device/pair` 换令牌流程，差别只在
     `account_id` 是否为空。
+
+    带 `Idempotency-Key` 时：同一台设备用同一把键重投，直接返回原来那条仍在有效期内的
+    会话（`pair_id` / 码 / 过期时间都不变），不会因为固件超时重试堆出一串孤儿会话。
     """
-    limited = await _rate('ip:' + client_ip(request))
+    limited = await _rate(request, 'ip:' + client_ip(request))
     if limited is not None:
         return limited
-    evkey = (request.headers.get('evkey') or request.query_params.get('evkey') or '').strip()
+    # evkey 只从请求头取：配对请求也走同一条规则，避免凭据出现在 URL 与访问日志里。
+    # 旧固件仍拼 ?evkey=... 时只会退化成「无归属」的正常配对码，再走网页认领。
+    evkey = (request.headers.get('evkey') or '').strip()
     account_id = None
     if evkey:
         from modules.database.accounts import get_account_by_evkey
         account = await asyncio.to_thread(get_account_by_evkey, evkey)
         if not account:
-            raise AuthError('无效的 evkey，用户不存在或已禁用')
+            raise AuthError('api.err_evkey_invalid')
         account_id = account['id']
 
     body = await _body(request)
     hw_uid = _hw_uid(body)
+    idem_key = _idempotency_key(request)
 
     from modules.device import store
+    if idem_key:
+        existing = await asyncio.to_thread(store.get_pairing_by_idempotency, hw_uid, idem_key)
+        if existing is not None:
+            return {
+                'success': True,
+                'pair_id': existing['id'],
+                'pair_code': store.format_pair_code(existing.get('pair_code')),
+                'expires_at': existing.get('expires_at') or '',
+                'reused': True,
+                **_time_fields(),
+            }
+
     ttl = int(getattr(config, 'DEVICE_PAIR_TTL_SECONDS', 600) or 0)
     payload = {
         'model': _text(body, 'model', 64),
@@ -342,7 +516,7 @@ async def device_pair_request(request: Request):
         'firmware': _text(body, 'firmware', 64),
     }
     pair_id, pair_code = await asyncio.to_thread(
-        store.create_pairing, hw_uid, payload, account_id, ttl)
+        store.create_pairing, hw_uid, payload, account_id, ttl, idem_key)
     expires_at = (datetime.datetime.now(datetime.timezone.utc)
                   + datetime.timedelta(seconds=ttl)).isoformat().replace('+00:00', 'Z')
     return {
@@ -350,6 +524,7 @@ async def device_pair_request(request: Request):
         'pair_id': pair_id,
         'pair_code': store.format_pair_code(pair_code),
         'expires_at': expires_at,
+        **_time_fields(),
     }
 
 
@@ -363,32 +538,62 @@ async def device_pair(request: Request):
       秒后带同样的 `pair_id` / `pair_code` 重投；
     - `200` + `state='paired'` + `token` → 拿到令牌，落库转去取图；
     - `4xx`（码错 / 过期 / 作废）→ 重新 `/device/pair/request` 出一次新码。
+
+    幂等重试：带 `Idempotency-Key` 且与会话上记录的一致时，「已经 paired、但固件没收到
+    令牌就超时重投」不会落到 `err_pair_used`，而是复核配对码后重新签发一枚令牌
+    （`reissued=True`）。旧令牌同时作废——令牌只在响应里出现一次，丢了只能重发。
     """
-    limited = await _rate('ip:' + client_ip(request))
+    limited = await _rate(request, 'ip:' + client_ip(request))
     if limited is not None:
         return limited
     body = await _body(request)
     pair_id = _text(body, 'pair_id', 128)
     pair_code = _text(body, 'pair_code', 32)
     if not pair_id or not pair_code:
-        raise ParamError('缺少 pair_id 或 pair_code')
+        raise ParamError('device.err_pair_params')
+    idem_key = _idempotency_key(request)
 
     from modules.device import store
     pairing = await asyncio.to_thread(store.get_pairing, pair_id)
     if pairing is None:
-        raise NotFoundError('配对会话不存在')
+        raise NotFoundError('device.err_pair_missing')
+    if pairing.get('status') == 'paired':
+        # 只有「同一把幂等键」的重投才允许补发，且必须仍过码校验：
+        # 否则拿到过 pair_id 的人都能在配对完成后无限重签令牌。
+        if not idem_key or idem_key != str(pairing.get('idempotency_key') or ''):
+            raise AccessDeniedError('device.err_pair_used')
+        if not store.verify_pairing_code(pairing, pair_code):
+            raise AccessDeniedError('device.err_pair_bad')
+        device = await asyncio.to_thread(store.get_device, pairing.get('device_id'))
+        if device is None:
+            raise NotFoundError('device.err_pair_missing')
+        token = store.new_device_token()
+        await asyncio.to_thread(store.set_device_token, device['id'], token)
+        from modules.device.schedule import build_next_url
+        return {
+            'success': True,
+            'state': 'paired',
+            'token': token,
+            'device_id': device['id'],
+            'size': str((await asyncio.to_thread(store.current_device_task, device['id'])
+                         or {}).get('size') or ''),
+            'sleep_seconds': 0,
+            'next_url': build_next_url(request, device),
+            'reissued': True,
+            **_time_fields(),
+        }
     if pairing.get('status') != 'pending':
-        raise AccessDeniedError('该配对会话已使用或已失效')
+        raise AccessDeniedError('device.err_pair_used')
     if store.is_pairing_expired(pairing):
         await asyncio.to_thread(store.set_pairing_status, pair_id, 'expired')
-        raise AccessDeniedError('配对码已过期，请重新发起配对')
+        raise AccessDeniedError('device.err_pair_expired')
     if not store.verify_pairing_code(pairing, pair_code):
         attempts = await asyncio.to_thread(store.record_pairing_attempt, pair_id)
         max_attempts = int(getattr(config, 'DEVICE_PAIR_MAX_ATTEMPTS', 5) or 0)
         if max_attempts > 0 and attempts >= max_attempts:
             await asyncio.to_thread(store.set_pairing_status, pair_id, 'rejected')
-            raise AccessDeniedError('配对码错误次数过多，该会话已作废')
-        raise AccessDeniedError('配对码不正确')
+            raise AccessDeniedError('device.err_pair_locked')
+        raise AccessDeniedError('device.err_pair_bad')
 
     # 会话还没归属账号（设备侧出码、等用户在网页输入配对码）：不绑定、不签发令牌。
     # 用 202 表示「已受理、稍后再来」——既不是拿到令牌，也不是请求有错。码校验已经过了，
@@ -397,10 +602,10 @@ async def device_pair(request: Request):
         return JSONResponse({
             'success': False,
             'state': 'pending_confirmation',
-            'message': '等待用户在网页输入配对码完成认领',
+            'message': t_req(request, 'device.pair_wait_claim'),
             'retry_after': 5,
             'pair_id': pair_id,
-            'server_time': utc_now_iso(),
+            **_time_fields(),
         }, status_code=202)
 
     account_id = pairing.get('account_id')
@@ -433,7 +638,7 @@ async def device_pair(request: Request):
     if account_id:
         denied = await _enforce_device_quota(account_id, hw_uid)
         if denied is not None:
-            raise AccessDeniedError(denied)
+            raise AccessDeniedError(denied[0], **denied[1])
 
     token = store.new_device_token()
     await asyncio.to_thread(store.set_device_token, device['id'], token)
@@ -450,15 +655,16 @@ async def device_pair(request: Request):
                      or {}).get('size') or ''),
         'sleep_seconds': 0,
         'next_url': build_next_url(request, device),
-        'server_time': utc_now_iso(),
+        **_time_fields(),
     }
 
 
 async def _enforce_device_quota(account_id, hw_uid):
-    """用户组设备名额校验；超额时返回提示文案，否则 None。
+    """用户组设备名额校验；超额时返回 `(取词键, 格式化参数)`，否则 None。
 
     判定已下沉到 `store.device_quota_error`：账号面「输入配对码认领」要用同一份口径，
-    两处各写一遍必然走偏。这里只保留事件循环里的异步包装。
+    两处各写一遍必然走偏。这里只做事件循环里的异步包装——取词交给异常处理器，
+    `AccessDeniedError` 认键与参数，不必在这儿先翻一遍再让处理器翻第二遍。
     """
     from modules.device import store
     return await asyncio.to_thread(store.device_quota_error, account_id, hw_uid)
@@ -468,16 +674,17 @@ async def _enforce_device_quota(account_id, hw_uid):
 async def device_status(request: Request):
     """设备问「现在显示什么、下次什么时候回来」——纯查询，不产生图"""
     device = await _authenticate(request)
-    limited = await _rate(f'd{device["id"]}')
+    limited = await _rate(request, f'd{device["id"]}')
     if limited is not None:
         return limited
-    account_id, group_id = await _account_context(device)
+    account_id, group_id = await _account_context(request, device)
 
     from modules.device import store
-    from modules.device.schedule import build_next_url, compute_sleep_seconds
+    from modules.device.schedule import build_next_url, compute_sleep_seconds, jitter_sleep_seconds
     # 先算间隔再打心跳：首次回连 last_seen_at 为空 → 0，设备立刻去取第一张图；
     # 若反过来先打心跳，首次就会拿到一整段间隔、白等一轮才拿到首图。
-    sleep_seconds = compute_sleep_seconds(device)
+    # 抖动的目的只是打散「大量设备整点同时醒」，不改变平均间隔。
+    sleep_seconds = jitter_sleep_seconds(compute_sleep_seconds(device))
     await asyncio.to_thread(store.touch_device, device['id'], 'status',
                             '', client_ip(request), _firmware(request))
 
@@ -490,7 +697,45 @@ async def device_status(request: Request):
         'task': _task_info(task, device) if task else None,
         'sleep_seconds': sleep_seconds,
         'next_url': build_next_url(request, device),
-        'server_time': utc_now_iso(),
+        **_time_fields(),
+    }
+
+
+@router.post('/telemetry')
+async def device_telemetry(request: Request):
+    """设备上报遥测：电量 / 信号 / 唤醒耗时 / 累计刷新次数。
+
+    与取图链路解耦：固件可以在唤醒后先报遥测、再决定是否取图（或只报不进图）。
+    数值一律钳在合理区间后落库——脏值只影响展示，不该让详情页出现 99999 mV 这类
+    明显不可能是真实读数的数据。
+    """
+    device = await _authenticate(request)
+    limited = await _rate(request, f'd{device["id"]}')
+    if limited is not None:
+        return limited
+    if device.get('account_id'):
+        request.state.device_account_id = int(device['account_id'])
+    body = await _body(request)
+
+    def clamp(key, low, high):
+        return max(low, min(_int_field(body, key, 0), high))
+
+    battery_mv = clamp('battery_mv', 0, 10000)
+    rssi = clamp('rssi', -200, 0)
+    wake_ms = clamp('wake_ms', 0, 600000)
+    refresh_count = clamp('refresh_count', 0, 2000000000)
+    firmware = _text(body, 'firmware', 64) or _firmware(request)
+
+    from modules.device import store
+    await asyncio.to_thread(
+        store.save_device_telemetry, device['id'], battery_mv, rssi, wake_ms,
+        refresh_count, firmware)
+    # 只留最近 200 条：遥测是高频上报，历史表不能无限长（设备详情只展示最近几条）
+    await asyncio.to_thread(store.trim_device_telemetry, device['id'], 200)
+    return {
+        'success': True,
+        'device_id': device['id'],
+        **_time_fields(),
     }
 
 
@@ -500,31 +745,41 @@ async def device_image(request: Request):
 
     响应头（而不是 JSON 包体）是刻意的：固件直接用 body 当位图流写屏，不必先解析 JSON
     再取 base64，省一次解码与一份内存。
+
+    - 成功响应对**最终字节**算强 ETag；设备带 `If-None-Match` 命中时回 `304` 且不带 body，
+      睡眠 / 下次地址等头照常给——省下的是射频时间与 Flash 写入。
+    - 渲染失败（非权限/参数错误）时回退这台设备上一张成功图，并带 `X-Device-Fallback: 1`：
+      墨水屏停在旧内容，远好于停在错误页或空白。
     """
     device = await _authenticate(request)
-    limited = await _rate(f'd{device["id"]}')
+    limited = await _rate(request, f'd{device["id"]}')
     if limited is not None:
         return limited
-    account_id, group_id = await _account_context(device)
+    account_id, group_id = await _account_context(request, device)
 
     from modules.device import store
-    from modules.device.schedule import build_next_url, compute_sleep_seconds
+    from modules.device.schedule import (
+        build_next_url, compute_sleep_seconds, jitter_sleep_seconds)
     task = await asyncio.to_thread(store.current_device_task, device['id']) if account_id else None
     if task is None:
         # 没有可渲染项：把原因记进档案（面板能看到），用 404 让固件明确区分
         # 「还没配」与「渲染失败」，而不是拿一张空白图当成功。
         await asyncio.to_thread(store.touch_device, device['id'], 'no-task',
                                 '该设备还没有配置渲染项', client_ip(request), _firmware(request))
-        raise NotFoundError('该设备还没有配置渲染项')
+        raise NotFoundError('api.err_no_item')
 
     if str(task.get('route_kind') or 'view') != 'view':
-        raise ParamError('该渲染项不是视图类型，无法取图')
+        raise ParamError('api.err_not_view_item')
     plugin_name = str(task.get('plugin_name') or '')
     route_path = str(task.get('route_path') or '')
     size = str(task.get('size') or '')
     if not plugin_name or not route_path or not size:
-        raise ParamError('渲染项配置不完整（缺插件 / 路由 / 尺寸）')
+        raise ParamError('api.err_item_incomplete')
     kind = route_path.rstrip('/').split('/')[-1]
+
+    # 总日志里要能看出「设备这次请求的是哪个插件的哪条路由」：/device/image 只是入口，
+    # 真正渲染的内容由渲染项决定，这里把路由交给请求日志中间件
+    request.state.log_route = route_path
 
     query = _task_query(task, device)
     plugin_dir = os.path.abspath(
@@ -535,17 +790,40 @@ async def device_image(request: Request):
     _check_render_access(request, plugin_name, route_path, group_id, img_format,
                          _explicit_group_params(query))
 
+    # 设备刷新同样计入属主账号的计次额度：`/device/**` 绕过了全局限流中间件，这里按账号
+    # 单独补一次消耗。放在权限校验之后、取图之前——预渲染缓存命中同样算一次刷新，
+    # 而配错权限 / 没配渲染项不会白吃额度。
+    from modules.utils.rate_limiter import consume_account_quota
+    allowed, quota_msg, _limit = await consume_account_quota(group_id, account_id)
+    if not allowed:
+        # 额度耗尽与渲染失败分开打点：设备侧 429 在后台看得到原因，也方便判断是配置问题
+        # 还是额度真的用完了
+        from modules.utils import metrics as _metrics
+        _metrics.incr('device_quota_rejected')
+        await asyncio.to_thread(store.touch_device, device['id'], 'error',
+                                quota_msg[:200], client_ip(request), _firmware(request))
+        return error_response(quota_msg, 429)
+
     from modules.prerender import store as prerender_store
     # 定时预渲染命中则直接复用成品图：设备侧与网页端共用同一份缓存键，
     # 不会出现「网页端命中、设备端却实时渲染」的双份开销。
-    response = await prerender_store.try_serve(
-        request, plugin_name, route_path, params, 'view', group_id)
-
     try:
+        response = await prerender_store.try_serve(
+            request, plugin_name, route_path, params, 'view', group_id)
         if response is None:
             response = await _render(request, plugin_name, kind, size, params,
                                      img_format, group_id, account_id)
+    except (ParamError, AccessDeniedError):
+        # 权限 / 参数问题是配置错误，拿旧图顶上等于把问题藏起来：
+        # 固件与面板都必须看到这次失败。
+        await asyncio.to_thread(store.touch_device, device['id'], 'error',
+                                '渲染被拒绝（权限或参数）', client_ip(request), _firmware(request))
+        raise
     except Exception as exc:
+        # 渲染失败 → 回退上一张成功图；没有可回退的才把错误抛给固件
+        fallback = await _serve_last_image(request, device, exc)
+        if fallback is not None:
+            return fallback
         await asyncio.to_thread(store.touch_device, device['id'], 'error',
                                 str(exc)[:200], client_ip(request), _firmware(request))
         raise
@@ -553,9 +831,26 @@ async def device_image(request: Request):
     # 打完心跳再算间隔：这次取图已经完成，下次该等满一个间隔，而不是又立刻来（忙轮询）
     await asyncio.to_thread(store.touch_device, device['id'], 'ok',
                             '', client_ip(request), _firmware(request))
-    sleep_seconds = compute_sleep_seconds(dict(device, last_seen_at=utc_now_iso()))
+    # 多视图轮播：**取图成功后**才推进游标——渲染失败 / 权限拒绝时下次还取同一项，
+    # 否则一次坏配置会让设备在几张图之间来回跳过，问题反而看不清。
+    await asyncio.to_thread(store.advance_device_carousel, device['id'])
+    sleep_seconds = jitter_sleep_seconds(
+        compute_sleep_seconds(dict(device, last_seen_at=utc_now_iso())))
 
-    response.headers['X-Device-Sleep'] = str(sleep_seconds)
-    response.headers['X-Device-Next-Url'] = build_next_url(request, device)
-    response.headers['X-Device-Now'] = utc_now_iso()
+    body = getattr(response, 'body', b'') or b''
+    if not body:
+        # 非内存响应（理论上不会出现在这两条链路）就不参与 ETag/回退，只补睡眠头
+        response.headers['X-Device-Sleep'] = str(sleep_seconds)
+        response.headers['X-Device-Next-Url'] = build_next_url(request, device)
+        response.headers['X-Device-Now'] = utc_now_iso()
+        response.headers['X-Device-Epoch'] = str(int(time.time()))
+        return response
+
+    etag = _etag_for(body)
+    await _persist_last_image(device, response, etag)
+    headers = _image_headers(sleep_seconds, build_next_url(request, device), etag)
+    if _etag_matches(request, etag):
+        # 304：不带 body，但睡眠指令必须照给，否则固件只能猜一个间隔
+        return Response(status_code=304, headers=headers)
+    response.headers.update(headers)
     return response

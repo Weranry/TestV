@@ -1,3 +1,4 @@
+import datetime
 import secrets
 
 from modules.database.core import _exec, _hash_password, _verify_password
@@ -60,10 +61,11 @@ def get_account_by_name(name):
 
 
 def get_account_for_reset(name, email):
-    """「忘记密码」用的匹配：账号名与注册邮箱都对上才返回该行（两者都不区分大小写）。
+    """「找回密码申请」用的匹配：账号名与注册邮箱都对上才返回该行（两者都不区分大小写）。
 
     邮箱是唯一凭据，因此必须与账号名一起校验；只比邮箱会让任意人用一个邮箱
-    把别人账号的密码改掉（邮箱在多账号间并不保证唯一）。
+    替别人申请重置（邮箱在多账号间并不保证唯一）。匹配成功后只生成待审批申请，
+    真正的新口令由管理员批准时生成，见 modules/database/password_resets.py。
     """
     return _select_account(
         'a.name = ? COLLATE NOCASE AND a.email <> \'\' AND a.email = ? COLLATE NOCASE '
@@ -124,8 +126,29 @@ def set_account_membership(account_id, group_id, expires_on='', fallback_group_i
 
 
 def set_account_password(account_id, password):
+    """设置正式口令：同时清掉临时密码的到期标记（改密后旧临时口令立即失去资格）。"""
     pw_hash = _hash_password(password)
-    _exec('UPDATE accounts SET password = ?, must_change_password = 0 WHERE id = ?', (pw_hash, account_id), commit=True)
+    _exec(
+        "UPDATE accounts SET password = ?, must_change_password = 0, temp_password_expires = '' "
+        'WHERE id = ?',
+        (pw_hash, account_id), commit=True)
+
+
+def set_account_temp_password(account_id, password, expires_at):
+    """写入一次性临时密码（管理员批准找回申请时用）。
+
+    must_change_password=1 让登录后只能进改密页；expires_at（UTC 字符串）到期后
+    这个临时口令立刻失效，用户必须重新申请。正式改密会同时清掉这个标记。
+    """
+    pw_hash = _hash_password(password)
+    _exec(
+        'UPDATE accounts SET password = ?, must_change_password = 1, temp_password_expires = ? '
+        'WHERE id = ?',
+        (pw_hash, expires_at, account_id), commit=True)
+
+
+def _utc_now_str():
+    return datetime.datetime.now(datetime.timezone.utc).strftime('%Y-%m-%d %H:%M:%S')
 
 
 def verify_account_login(identifier, password):
@@ -133,6 +156,9 @@ def verify_account_login(identifier, password):
 
     纯数字一律按 uid 解释（账号名已禁止纯数字，见 is_numeric_identifier），
     所以这里不需要「先查名字再查编号」的回落——那种回落会让一个数字账号名把对应 uid 的登录抢走。
+
+    临时密码过了有效期直接按「密码错误」处理：字符串是 UTC 的 'YYYY-MM-DD HH:MM:SS'，
+    与写入时同一种格式，直接字典序比较即可。
     """
     ident = (identifier or '').strip()
     if is_numeric_identifier(ident):
@@ -141,13 +167,32 @@ def verify_account_login(identifier, password):
         # 账号名不区分大小写：登录入口与 get_account_by_name 走同一口径
         where, params = 'a.name = ? COLLATE NOCASE AND a.enabled = 1', (ident,)
     acct = _exec(
-        f'SELECT {_ACCOUNT_FIELDS}, a.password {_ACCOUNT_FROM} WHERE {where}',
+        f'SELECT {_ACCOUNT_FIELDS}, a.password, a.temp_password_expires '
+        f'{_ACCOUNT_FROM} WHERE {where}',
         params, fetch_one=True,
     )
-    if not acct or not _verify_password(password, acct['password']):
+    if not acct:
+        return None
+    # 先判过期再算 pbkdf2：过期口令连校验都不必做
+    if acct['temp_password_expires'] and acct['temp_password_expires'] <= _utc_now_str():
+        return None
+    if not _verify_password(password, acct['password']):
         return None
     del acct['password']
+    del acct['temp_password_expires']
     return acct
+
+
+def verify_account_password(account_id, password):
+    """校验某账号的当前口令（改密前要求先验证旧密码）。
+
+    只认 enabled = 1 的账号：已禁用账号即便会话还没过期，也不该能继续改密。
+    """
+    row = _exec('SELECT password FROM accounts WHERE id = ? AND enabled = 1',
+                (account_id,), fetch_one=True)
+    if not row or not _verify_password(password or '', row['password']):
+        return False
+    return True
 
 
 def delete_account(account_id):

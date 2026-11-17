@@ -240,7 +240,7 @@ def init_db():
             name TEXT NOT NULL UNIQUE,
             description TEXT DEFAULT '',
             max_evkeys INTEGER DEFAULT 3,
-            max_devices INTEGER NOT NULL DEFAULT 1,
+            max_devices INTEGER NOT NULL DEFAULT -1,
             max_concurrent_renders INTEGER DEFAULT 5,
             rate_limit_per_minute INTEGER NOT NULL DEFAULT 0,
             quota_limit INTEGER NOT NULL DEFAULT 0,
@@ -338,6 +338,7 @@ def init_db():
             width INTEGER NOT NULL DEFAULT 0,
             height INTEGER NOT NULL DEFAULT 0,
             palette TEXT NOT NULL DEFAULT 'bw',
+            palette_override TEXT NOT NULL DEFAULT '',
             format TEXT NOT NULL DEFAULT 'array',
             firmware TEXT NOT NULL DEFAULT '',
             enabled INTEGER NOT NULL DEFAULT 1,
@@ -351,9 +352,36 @@ def init_db():
             last_status TEXT NOT NULL DEFAULT '',
             last_error TEXT NOT NULL DEFAULT '',
             last_ip TEXT NOT NULL DEFAULT '',
+            carousel_index INTEGER NOT NULL DEFAULT 0,
+            carousel_mode TEXT NOT NULL DEFAULT 'sequence',
+            battery_mv INTEGER NOT NULL DEFAULT 0,
+            rssi INTEGER NOT NULL DEFAULT 0,
+            wake_ms INTEGER NOT NULL DEFAULT 0,
+            refresh_count INTEGER NOT NULL DEFAULT 0,
+            offline_alerted INTEGER NOT NULL DEFAULT 0,
+            last_image_path TEXT NOT NULL DEFAULT '',
+            last_image_etag TEXT NOT NULL DEFAULT '',
+            last_image_mime TEXT NOT NULL DEFAULT '',
+            last_image_name TEXT NOT NULL DEFAULT '',
             created_at TEXT NOT NULL DEFAULT (datetime('now')),
             FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
         );
+        -- 设备遥测历史：电量 / 信号 / 唤醒耗时 / 累计刷新次数，由设备主动上报。
+        -- devices 上的同名列只是最近一次的快照（列表展示用），历史全在这张表里；
+        -- 设备删除时随外键级联清理，不留孤儿行。
+        CREATE TABLE IF NOT EXISTS device_telemetry (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            device_id INTEGER NOT NULL,
+            battery_mv INTEGER NOT NULL DEFAULT 0,
+            rssi INTEGER NOT NULL DEFAULT 0,
+            wake_ms INTEGER NOT NULL DEFAULT 0,
+            refresh_count INTEGER NOT NULL DEFAULT 0,
+            firmware TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_device_telemetry_device
+            ON device_telemetry(device_id, id);
         -- 配对会话：设备侧的「待认领」凭据，account_id 落库即代表配对完成。
         -- id 是 pair_id（不透明随机串），pair_code 才是给人看/输入的短码。
         CREATE TABLE IF NOT EXISTS device_pairings (
@@ -366,10 +394,22 @@ def init_db():
             device_id INTEGER,
             status TEXT NOT NULL DEFAULT 'pending',
             attempts INTEGER NOT NULL DEFAULT 0,
+            idempotency_key TEXT NOT NULL DEFAULT '',
             created_at TEXT NOT NULL,
             expires_at TEXT NOT NULL
         );
         CREATE INDEX IF NOT EXISTS idx_pair_code ON device_pairings(pair_code, status);
+        -- idx_pair_idem 不在这里建：老库的 device_pairings 还没有 idempotency_key，
+        -- 建表脚本先于迁移执行，直接 CREATE INDEX 会报 "no such column" 让启动失败。
+        -- 索引统一由迁移 57 在加列之后创建（新库也走那条）。
+        -- 幂等响应缓存：register / pair-request 这类非敏感响应按 Idempotency-Key 复用，
+        -- 固件超时重试不会重复建档或重新出码。过期行由写入时顺手清理。
+        CREATE TABLE IF NOT EXISTS device_idempotency (
+            idem_key TEXT PRIMARY KEY,
+            scope TEXT NOT NULL DEFAULT '',
+            response_json TEXT NOT NULL DEFAULT '{}',
+            created_at TEXT NOT NULL
+        );
         -- 渲染项：一台设备挂多个「插件 + 路由 + 尺寸 + 参数」，sort_order 即轮播顺序。
         -- cache_key 与 prerender_tasks.cache_key 同构，供以后直接复用成品图。
         CREATE TABLE IF NOT EXISTS device_tasks (
@@ -401,6 +441,37 @@ def init_db():
             UNIQUE (device_id, account_id)
         );
         CREATE INDEX IF NOT EXISTS idx_device_shares_account ON device_shares(account_id, device_id);
+        -- 设备签入审批：关闭「自动加入」后，用户在网页输入配对码认领设备时不再当场绑定，
+        -- 而是落一条待审批记录，管理员在「设备签入审批」里批准才真正归属该账号。
+        -- pair_id 指向发起这次认领的配对会话（批准后据此更新会话归属），可空。
+        CREATE TABLE IF NOT EXISTS device_signins (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            hw_uid TEXT NOT NULL,
+            pair_id TEXT NOT NULL DEFAULT '',
+            payload_json TEXT NOT NULL DEFAULT '{}',
+            status TEXT NOT NULL DEFAULT 'pending',
+            note TEXT NOT NULL DEFAULT '',
+            admin_name TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_device_signins_status ON device_signins(status, id);
+        -- 用户端通知：设备被删除、权限变更、系统消息等按账号投递。kind 是类别（前端据此选
+        -- 图标与文案），payload_json 存渲染所需快照（如设备名、组名），不存成品中文以免
+        -- 英文界面露中文；read_at 为空即未读。账号删除时随 FK 级联清理。
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            kind TEXT NOT NULL DEFAULT '',
+            title TEXT NOT NULL DEFAULT '',
+            body TEXT NOT NULL DEFAULT '',
+            payload_json TEXT NOT NULL DEFAULT '{}',
+            read_at TEXT,
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_notifications_account ON notifications(account_id, id);
     ''')
     conn.execute("INSERT OR IGNORE INTO user_groups(id, name, description) VALUES(1, 'admin', 'Default admin group')")
     conn.execute("INSERT OR IGNORE INTO user_groups(id, name, description, max_evkeys) VALUES(2, 'Free', 'Default group for self-registered accounts', 5)")
@@ -584,7 +655,9 @@ def init_db():
             error TEXT,
             account_id INTEGER,
             cache_hit INTEGER NOT NULL DEFAULT 0,
-            request_id TEXT
+            request_id TEXT,
+            source TEXT NOT NULL DEFAULT '',
+            route TEXT NOT NULL DEFAULT ''
         );
         CREATE INDEX IF NOT EXISTS idx_request_logs_timestamp ON request_logs(timestamp);
         CREATE INDEX IF NOT EXISTS idx_request_logs_plugin ON request_logs(plugin_name);
@@ -659,6 +732,19 @@ def init_db():
             render_ms REAL
         );
         CREATE INDEX IF NOT EXISTS idx_prerender_cache_rendered ON prerender_cache(rendered_at);
+        -- 找回密码申请单：用户只能「申请」，密码仍由管理员批准后生成一次性临时密码。
+        -- 申请单只留状态与处理人，不存任何凭据；账号删除时随 FK 级联清理。
+        CREATE TABLE IF NOT EXISTS password_reset_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            account_id INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            handled_by TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            handled_at TEXT NOT NULL DEFAULT '',
+            FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+        );
+        CREATE INDEX IF NOT EXISTS idx_password_reset_requests_status
+            ON password_reset_requests(status, id);
     ''')
     conn.commit()
     conn.close()

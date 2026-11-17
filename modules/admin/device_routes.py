@@ -78,10 +78,12 @@ def _limits():
         'min_interval': int(getattr(config, 'DEVICE_MIN_SLEEP_SECONDS', 60)),
         'max_interval': int(getattr(config, 'DEVICE_MAX_SLEEP_SECONDS', 21600)),
         # 设备只走数组格式族（省设备端内存），且格式恒由调色板推导、不由用户手选：
-        # `formats` 仍是数组族的全部名字，`palette_formats` 是「调色板 → 唯一格式」对照表。
+        # `formats` 仍是数组族的全部名字，`palette_formats` 是「调色板 → 唯一格式」对照表，
+        # `palette_colors` 给前端判断「哪些调色板属于降级」（颜色数不能超过上报值）。
         'formats': array_formats(),
         'palettes': palettes,
         'palette_formats': {p: format_for_palette(p) for p in palettes},
+        'palette_colors': {p: len(PALETTES[p]) // 3 for p in palettes},
     }
 
 
@@ -187,15 +189,37 @@ async def _editable_task(request, task_id):
 
 # ======================== 序列化 ========================
 
+def _device_size_key(device):
+    """设备上报的宽高 → 标准尺寸键（插件 view 目录用的就是这些键）；非标准尺寸返回 ''。
+
+    渲染项的尺寸从此项推导、不再让用户手选：选了设备显示不了的尺寸，设备只会收到
+    一张被裁切或拉伸的图。尺寸表以 `canvas_factory.SIZES` 为唯一来源。
+    """
+    from modules.generate_views.canvas_factory import SIZES
+    width = int(device.get('width') or 0)
+    height = int(device.get('height') or 0)
+    if width <= 0 or height <= 0:
+        return ''
+    for key, dims in SIZES.items():
+        if tuple(dims) == (width, height):
+            return key
+    return ''
+
+
 def _device_summary(device, task_count=0):
+    from modules.device.schedule import compute_next_refresh_at
     return {
         'id': device['id'],
         'name': device.get('name') or '',
         'model': device.get('model') or '',
+        'firmware': device.get('firmware') or '',
         'hw_uid': device.get('hw_uid') or '',
         'width': int(device.get('width') or 0),
         'height': int(device.get('height') or 0),
+        # 尺寸 / 输出格式都由上报值推导，前端只展示、不再提供选择
+        'size_key': _device_size_key(device),
         'palette': device.get('palette') or 'bw',
+        'palette_override': device.get('palette_override') or '',
         'format': device.get('format') or 'array',
         'enabled': bool(device.get('enabled')),
         'schedule_type': device.get('schedule_type') or 'interval',
@@ -203,9 +227,18 @@ def _device_summary(device, task_count=0):
         'daily_times': device.get('daily_times') or '',
         'cron_expr': device.get('cron_expr') or '',
         'timezone': device.get('timezone') or '',
+        # 轮播切换方式：sequence = 按顺序，random = 每次随机
+        'carousel_mode': device.get('carousel_mode') or 'sequence',
         'last_seen_at': device.get('last_seen_at'),
+        # 下次回连时刻（估算）：上次回连 + 当次下发的睡眠秒数；从未上线为空串
+        'next_refresh_at': compute_next_refresh_at(device),
         'last_status': device.get('last_status') or '',
         'last_error': device.get('last_error') or '',
+        # 最近一次遥测快照（0 = 设备还没上报过，不是真实读数）
+        'battery_mv': int(device.get('battery_mv') or 0),
+        'rssi': int(device.get('rssi') or 0),
+        'wake_ms': int(device.get('wake_ms') or 0),
+        'refresh_count': int(device.get('refresh_count') or 0),
         # 已认领但设备还没来换过令牌：面板据此显示「等待设备上线」
         'paired': bool(device.get('token_hash')),
         'task_count': int(task_count or 0),
@@ -239,6 +272,8 @@ async def _detail_payload(device):
     tasks = await asyncio.to_thread(store.list_device_tasks, device['id'])
     detail = _device_summary(device, len(tasks))
     detail['tasks'] = [_task_summary(task, device) for task in tasks]
+    # 最近 20 条遥测（新的在前）：详情弹窗按 5 条一页翻，其余不占版面
+    detail['telemetry'] = await asyncio.to_thread(store.list_device_telemetry, device['id'], 20)
     detail['limits'] = _limits()
     if detail['owner']:
         detail['shares'] = await asyncio.to_thread(store.list_shares_for_device, device['id'])
@@ -247,14 +282,26 @@ async def _detail_payload(device):
 
 # ======================== 渲染项校验 ========================
 
-async def _validate_task(request, user, plugin_name, route_path, size, params):
+def _size_error(request, device):
+    return error_response(t_req(
+        request, 'account.dev_size_unsupported',
+        w=int(device.get('width') or 0), h=int(device.get('height') or 0)), 400)
+
+
+async def _validate_task(request, user, device, plugin_name, route_path, params):
     """渲染项写入前的三重校验：插件可达 → 路由与尺寸可用 → 参数符合插件 schema。
+
+    尺寸不再由请求体决定：一律取设备上报宽高对应的标准尺寸。这样即使旧页面、脚本或
+    脏请求传了别的尺寸，也不会把一台 200×200 的设备配成 800×480 的渲染项。
 
     偏「让用户当场改对」：取图路径（`/device/image`）每次都会再复核一遍插件与路由权限，
     所以这里漏了也不会越权，但会让用户在设备上看到一张模糊的 404 而不是一条明确的 400。
     """
-    if not plugin_name or not route_path or not size:
+    if not plugin_name or not route_path:
         return error_response(t_req(request, 'account.dev_task_incomplete'), 400)
+    size = _device_size_key(device)
+    if not size:
+        return _size_error(request, device)
     from modules.database.access import check_user_plugin_access, check_user_route_access
     group_id = user.get('group_id')
     if not check_user_plugin_access(group_id, plugin_name):
@@ -344,11 +391,21 @@ async def claim_device(request: Request):
                              'message': t_req(request, 'account.dev_claim_ok')})
 
     hw_uid = str(pairing.get('hw_uid') or '')
+    payload = _json_obj(pairing.get('payload_json'))
+
+    # 关闭「自动加入」时转人工审批：只落一条待审记录，不绑定、也不占名额——
+    # 名额在管理员批准、真正绑定的那一刻再复核（期间上限可能被调小）。
+    import config as cfg
+    if getattr(cfg, 'DEVICE_APPROVAL_REQUIRED', False):
+        await asyncio.to_thread(store.create_signin, user['id'], hw_uid, pairing['id'], payload)
+        return JSONResponse({'success': True, 'pending': True,
+                             'message': t_req(request, 'account.dev_claim_pending')})
+
     denied = await asyncio.to_thread(store.device_quota_error, user['id'], hw_uid)
     if denied:
-        return error_response(denied, 400)
+        # 名额已满：store 回的是取词键，文案按请求语言在这儿拼（与 /device/pair、管理端审批同一组键）
+        return error_response(t_req(request, denied[0], **denied[1]), 400)
 
-    payload = _json_obj(pairing.get('payload_json'))
     device_id = await asyncio.to_thread(store.bind_device_to_account, hw_uid, user['id'], payload)
     written = await asyncio.to_thread(
         store.attach_pairing_account, pairing['id'], user['id'], device_id)
@@ -364,10 +421,32 @@ async def claim_device(request: Request):
 
 @router.get('/api/my/device-options')
 async def my_device_options(request: Request):
-    """渲染项表单的可选项：插件 → 视图路由 → 尺寸 → 参数 schema，外加取值区间。"""
-    user, err = await _ctx(request)
-    if err:
-        return err
+    """渲染项表单的可选项：插件 → 视图路由 → 参数 schema，外加取值区间。
+
+    传 `device_id` 时按该设备上报的宽高过滤：只保留确实实现了这个尺寸的视图路由，
+    返回的 `sizes` 也只剩这一项——尺寸由设备决定，前端不再让用户手选。
+    """
+    device_id = (request.query_params.get('device_id') or '').strip()
+    device = None
+    if device_id:
+        user, device, err = await _editable_device(request, device_id)
+        if err:
+            return err
+    else:
+        user, err = await _ctx(request)
+        if err:
+            return err
+    size_key = _device_size_key(device) if device else ''
+    if device is not None and not size_key:
+        # 非标准尺寸：没有任何插件视图能按原分辨率出图，直接返回空清单让前端给出提示，
+        # 不再跑一遍插件扫描
+        return JSONResponse({
+            'plugins': [], 'limits': _limits(), 'device_size': '',
+            'device_width': int(device.get('width') or 0),
+            'device_height': int(device.get('height') or 0),
+            'size_unsupported': True,
+        })
+
     group_id = user.get('group_id')
     from modules.database.access import check_user_plugin_access, check_user_route_access
     from modules.plugins.plugin_loader import get_view_args_schema
@@ -384,6 +463,11 @@ async def my_device_options(request: Request):
             # 这里就把 json / page 路由滤掉，免得前端列出一堆选了必然 400 的选项
             if route['kind'] != 'view' or not route['sizes']:
                 continue
+            if size_key:
+                # 设备的尺寸不在这个视图里实现 → 不显示；命中的只回这一种尺寸
+                if size_key not in route['sizes']:
+                    continue
+                route = dict(route, sizes=[size_key])
             if not check_user_route_access(group_id, route['path']):
                 continue
             routes.append(route)
@@ -396,7 +480,12 @@ async def my_device_options(request: Request):
             'schema': schema,
             'routes': routes,
         })
-    return JSONResponse({'plugins': items, 'limits': _limits()})
+    payload = {'plugins': items, 'limits': _limits(), 'device_size': size_key}
+    if device is not None:
+        payload['device_width'] = int(device.get('width') or 0)
+        payload['device_height'] = int(device.get('height') or 0)
+        payload['size_unsupported'] = False
+    return JSONResponse(payload)
 
 
 @router.get('/api/my/devices/{device_id}')
@@ -465,12 +554,25 @@ async def update_my_device(device_id: str, request: Request):
         fields['height'] = max(0, min(_int_field(body, 'height', 0), _MAX_DIMENSION))
     if 'enabled' in body:
         fields['enabled'] = 1 if _truthy(body.get('enabled')) else 0
-    if 'palette' in body:
-        value = str(body.get('palette') or '')
-        if value not in _limits()['palettes']:
+    # 轮播切换方式：单图（只启用一项）时也允许写，存下来不影响取图，下次切回轮播还能沿用
+    if 'carousel_mode' in body:
+        mode = str(body.get('carousel_mode') or '').strip().lower()
+        if mode not in ('sequence', 'random'):
+            return error_response(t_req(request, 'account.dev_bad_value', name=mode), 400)
+        fields['carousel_mode'] = mode
+    # 颜色能力由设备上报，用户只能「降级」：palette_override 留空 = 跟随上报值。
+    # 兼容老调用方把降级意图写在 palette 里（此前该字段可直写），统一落到 override 列。
+    grade = body.get('palette_override', body.get('palette', None))
+    if grade is not None:
+        value = str(grade or '').strip()
+        limits = _limits()
+        if value and value not in limits['palettes']:
             return error_response(t_req(request, 'account.dev_bad_value', name=value), 400)
-        # 格式不在这里接收：`store.update_device` 会按新调色板推导出唯一对应的 array 格式
-        fields['palette'] = value
+        reported = str(device.get('palette') or '')
+        colors = limits['palette_colors']
+        if value and reported in colors and colors[value] > colors[reported]:
+            return error_response(t_req(request, 'account.dev_palette_grade'), 400)
+        fields['palette_override'] = value
 
     invalid = _apply_schedule(request, body, fields)
     if invalid is not None:
@@ -560,11 +662,14 @@ async def create_my_device_task(device_id: str, request: Request):
         return error_response(t_req(request, 'msg.bad_json'), 400)
     plugin_name = str(body.get('plugin_name') or '').strip()
     route_path = str(body.get('route_path') or '').strip()
-    size = str(body.get('size') or '').strip()
+    # 尺寸由设备上报值决定，忽略请求体里的 size（旧页面 / 脚本传什么都不采信）
+    size = _device_size_key(device)
+    if not size:
+        return _size_error(request, device)
     params = body.get('params')
     if not isinstance(params, dict):
         params = {}
-    invalid = await _validate_task(request, user, plugin_name, route_path, size, params)
+    invalid = await _validate_task(request, user, device, plugin_name, route_path, params)
     if invalid is not None:
         return invalid
     existing = await asyncio.to_thread(store.list_device_tasks, device['id'])
@@ -596,7 +701,7 @@ async def reorder_my_device_tasks(device_id: str, request: Request):
 
 @router.put('/api/my/device-tasks/{task_id}')
 async def update_my_device_task(task_id: str, request: Request):
-    """更新渲染项（改插件 / 路由 / 尺寸 / 参数 / 名称 / 启用）；被共享者同样可改"""
+    """更新渲染项（改插件 / 路由 / 参数 / 名称 / 启用）；被共享者同样可改"""
     user, task, device, err = await _editable_task(request, task_id)
     if err:
         return err
@@ -605,11 +710,14 @@ async def update_my_device_task(task_id: str, request: Request):
         return error_response(t_req(request, 'msg.bad_json'), 400)
     plugin_name = str(body.get('plugin_name') or task.get('plugin_name') or '').strip()
     route_path = str(body.get('route_path') or task.get('route_path') or '').strip()
-    size = str(body.get('size') or task.get('size') or '').strip()
+    # 尺寸始终跟随设备上报的宽高，旧渲染项也会在保存时被纠正
+    size = _device_size_key(device)
+    if not size:
+        return _size_error(request, device)
     params = body.get('params')
     if not isinstance(params, dict):
         params = store.load_task_params(task)
-    invalid = await _validate_task(request, user, plugin_name, route_path, size, params)
+    invalid = await _validate_task(request, user, device, plugin_name, route_path, params)
     if invalid is not None:
         return invalid
     fields = {

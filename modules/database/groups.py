@@ -17,7 +17,7 @@ ADMIN_GROUP_NAME = 'admin'
 FALLBACK_USER_GROUP_ID = 2
 
 # 管理组可勾选的后台分页（不含恒可用的「我的」）。顺序即面板展示顺序。
-ALL_ADMIN_TABS = ('overview', 'plugins', 'users', 'test', 'logs', 'cache',
+ALL_ADMIN_TABS = ('overview', 'plugins', 'users', 'devices', 'test', 'logs', 'cache',
                   'prerender', 'stats', 'config', 'backup')
 # 任何身份都进得去的分页：用户组的唯一分页、管理组的个人信息页
 ACCOUNT_TAB = 'account'
@@ -227,19 +227,21 @@ def ensure_register_group():
 
 def create_group(name, description='', max_concurrent_renders=5,
                  rate_limit_per_minute=0, max_evkeys=3, quota_limit=0, quota_period='day',
-                 category=CATEGORY_USER, admin_tabs='', show_announcement=1):
+                 category=CATEGORY_USER, admin_tabs='', show_announcement=1,
+                 max_devices=-1):
     # max_evkeys / quota_* / category / admin_tabs 放在末尾：它们是后加的字段，
     # 插进中间会悄悄改掉既有位置参数的语义
     # max_evkeys：-1 = 不限，0 = 禁止创建，N = N 个
     # show_announcement：管理组是否在概览页看到站内信卡片，1 = 显示
+    # max_devices：-1 = 不限（默认），0 = 禁止签入，N = 最多 N 台
     return _exec(
         'INSERT INTO user_groups (name, description, max_evkeys, max_concurrent_renders,'
         ' rate_limit_per_minute, quota_limit, quota_period, category, admin_tabs,'
-        ' show_announcement)'
-        ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        ' show_announcement, max_devices)'
+        ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         (name, description, max_evkeys, max_concurrent_renders, rate_limit_per_minute,
          quota_limit, quota_period, normalize_category(category),
-         normalize_admin_tabs(admin_tabs), 1 if show_announcement else 0),
+         normalize_admin_tabs(admin_tabs), 1 if show_announcement else 0, max_devices),
         commit=True,
     )
 

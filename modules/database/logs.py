@@ -10,11 +10,11 @@ _dropped = 0
 _dropped_lock = threading.Lock()
 
 def log_request(timestamp, path, method, plugin_name, status_code, duration_ms, error,
-                account_id=None, cache_hit=0, request_id=None):
+                account_id=None, cache_hit=0, request_id=None, source=None, route=None):
     try:
         _ensure_log_queue().put_nowait(
             (timestamp, path, method, plugin_name, status_code, duration_ms, error,
-             account_id, 1 if cache_hit else 0, request_id)
+             account_id, 1 if cache_hit else 0, request_id, source or '', route or '')
         )
     except queue.Full:
         global _dropped
@@ -46,8 +46,8 @@ def flush_log_queue():
     # evkey 列保留但不再写入：request_logs 是纯追加表，SQLite 删列要整表重建，
     # 为了几个字节不值得。新行的 evkey 为 NULL，查询侧也不再把这一列带出来。
     sql = ('INSERT INTO request_logs (timestamp, path, method, plugin_name, status_code, '
-           'duration_ms, error, account_id, cache_hit, request_id) '
-           'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+           'duration_ms, error, account_id, cache_hit, request_id, source, route) '
+           'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
     for start in range(0, len(entries), _LOG_FLUSH_BATCH):
         chunk = entries[start:start + _LOG_FLUSH_BATCH]
         with _db_lock:
@@ -55,12 +55,15 @@ def flush_log_queue():
             conn.commit()
 
 
-def _log_filters(plugin_name=None, min_status=None, account_id=None):
+def _log_filters(plugin_name=None, min_status=None, account_id=None, source=None):
     """request_logs 的公共过滤条件，列表查询与计数共用，避免两处 SQL 各自维护"""
     clauses, params = [], []
     if plugin_name:
         clauses.append('plugin_name = ?')
         params.append(plugin_name)
+    if source:
+        clauses.append('source = ?')
+        params.append(source)
     if min_status is not None:
         clauses.append('status_code >= ?')
         params.append(min_status)
@@ -85,19 +88,20 @@ def _tz_modifier(offset_hours):
 
 # 日志列表/导出统一走这份投影：evkey 已不再记录（老行里残留的值也不再对外返回）
 _LOG_FIELDS = ('id, timestamp, path, method, plugin_name, status_code, duration_ms, '
-               'error, account_id, cache_hit, request_id')
+               'error, account_id, cache_hit, request_id, source, route')
 
 
-def get_request_logs(limit=100, offset=0, plugin_name=None, min_status=None, account_id=None):
-    where, params = _log_filters(plugin_name, min_status, account_id)
+def get_request_logs(limit=100, offset=0, plugin_name=None, min_status=None, account_id=None,
+                     source=None):
+    where, params = _log_filters(plugin_name, min_status, account_id, source)
     return _exec(
         f'SELECT {_LOG_FIELDS} FROM request_logs WHERE 1=1{where} ORDER BY id DESC LIMIT ? OFFSET ?',
         params + [limit, offset], fetch_all=True,
     )
 
 
-def get_request_log_count(plugin_name=None, min_status=None, account_id=None):
-    where, params = _log_filters(plugin_name, min_status, account_id)
+def get_request_log_count(plugin_name=None, min_status=None, account_id=None, source=None):
+    where, params = _log_filters(plugin_name, min_status, account_id, source)
     row = _exec(f'SELECT COUNT(*) as cnt FROM request_logs WHERE 1=1{where}', params, fetch_one=True)
     return row['cnt'] if row else 0
 
@@ -108,8 +112,13 @@ def clear_request_logs():
     # 整表单条 DELETE 会长时间占住全局写锁，与保留期清理同一处理：切成小批
     _delete_batched('DELETE FROM request_logs WHERE id IN ('
                     'SELECT id FROM request_logs LIMIT ?)', ())
-    _stats_cache.clear()
+    clear_stats_cache()
     return deleted
+
+
+def clear_stats_cache():
+    """丢掉统计页的聚合短缓存（清理记录后必须调用，否则面板还显示清空前的数）"""
+    _stats_cache.clear()
 
 
 # 统计页的聚合结果短缓存：面板是轮询展示、允许秒级延迟，不值得每次全量重算。

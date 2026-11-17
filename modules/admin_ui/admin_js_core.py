@@ -72,6 +72,20 @@ document.addEventListener('click',function(e){
     case 'evkey-gen':genEvkey(parseInt(el.dataset.id),el);break;
     case 'evkey-toggle':toggleEvkey(parseInt(el.dataset.id),el.dataset.en!=='1',el);break;
     case 'evkey-del':delEvkey(parseInt(el.dataset.id));break;
+    /* ---- 设备：总列表（详情弹窗）与签入审批（单条静默 + 批量确认，同注册申请） ---- */
+    case 'device-user':showDeviceUserModal(parseInt(el.dataset.id));break;
+    case 'dsignin-approve':approveDeviceSignin(parseInt(el.dataset.id),el);break;
+    case 'dsignin-reject':rejectDeviceSignin(parseInt(el.dataset.id),el);break;
+    case 'dsignin-batch':batchDeviceSignins(el.dataset.op);break;
+    case 'dsignin-check':toggleDsigninCheck(el);break;
+    case 'dsignin-check-all':toggleDsigninCheckAll(el);break;
+    case 'dsignin-clear':clearDsigninSel();break;
+    /* ---- 设备治理：管理端只能启用/停用与删除（详情弹窗里的设备行） ---- */
+    case 'dadmin-dev-toggle':toggleAdminDevice(parseInt(el.dataset.id,10),el.dataset.en==='1',el);break;
+    case 'dadmin-dev-del':deleteAdminDevice(parseInt(el.dataset.id,10));break;
+    /* ---- 高级模式：关于页口令解锁 / 重新上锁 ---- */
+    case 'adv-unlock':unlockAdvanced(el);break;
+    case 'adv-lock':lockAdvanced();break;
     case 'copy-text':copyText(el.dataset.copy);break;
     case 'ad-fill':adFill(el.dataset.path);break;
     case 'bk-download':bkDownload(el);break;
@@ -115,13 +129,20 @@ document.addEventListener('click',function(e){
     case 'ann-create':createAnnouncement(el);break;
     case 'ann-del':delAnnouncement(parseInt(el.dataset.id),el.dataset.title);break;
     case 'ann-all':annToggleAll(el);break;
-    case 'snav-fold':toggleSnavFold(el.dataset.group);break;
+    case 'snav-fold':toggleSnavFold(el.dataset.group,el);break;
+    /* 折叠态飞窗里选二级项：不展开侧栏（折叠是用户自己选的），直接切到目标页 */
+    case 'snav-fly':{
+      _flyKeepFold=true;
+      if(el.dataset.sub)switchTab(el.dataset.page,el.dataset.sub);else switchTab(el.dataset.page);
+      _flyKeepFold=false;
+      closeSnavFlyout();
+      break
+    }
     case 'snav-fold-toggle':toggleSnavFolded();break;
     case 'snav-toggle':setSidebar(!document.getElementById('sidebar').classList.contains('open'));break;
     case 'snav-close':setSidebar(false);break;
     case 'set-cat':setSelect(el.dataset.cat);break;
-    case 'set-enter':enterSettings();break;
-    case 'set-home':exitSettings();break;
+    case 'set-enter':openSettingsModal();break;
     case 'go-account':switchTab('account');break;
   }
 });
@@ -129,14 +150,16 @@ document.addEventListener('click',function(e){
 /* ================= 侧边栏 ================= */
 /* 可展开分组的「组 key → 子菜单容器 id」。分组本身不建新分页键：二级项复用的就是
    本组一级项的分页键（用户下设用户组/账号/激活码/注册申请，日志下设两种视图与统计） */
-var SNAV_FOLDS={'users':'snav-sub-users','logs':'snav-sub-logs'};
+var SNAV_FOLDS={'users':'snav-sub-users','devices':'snav-sub-devices','logs':'snav-sub-logs'};
 /* 面包屑：分页 → 取词键。分组归属在 paintCrumbs 里判定，不额外维护一份表 */
-var CRUMBS={overview:'nav.overview',plugins:'nav.plugins',users:'nav.users',test:'nav.test',
-  logs:'nav.logs',cache:'nav.cache',prerender:'nav.prerender',stats:'nav.stats',
-  config:'nav.config',backup:'nav.backup',account:'nav.account'};
+var CRUMBS={overview:'nav.overview',plugins:'nav.plugins',users:'nav.users',devices:'nav.devices',
+  test:'nav.test',logs:'nav.logs',cache:'nav.cache',prerender:'nav.prerender',stats:'nav.stats',
+  backup:'nav.backup',account:'nav.account'};
 /* 「用户」下面的五个子视图 → 取词键。键要写成完整的字面量：静态扫描（test_i18n）
    靠它核对键是否存在，拼字符串拼出来的键扫不到 */
 var USER_SUB_CRUMBS={groups:'user.groups',accounts:'user.accounts',codes:'user.codes',apps:'user.apps',announce:'announce.nav'};
+/* 「设备」下面的两个子视图 → 取词键（同上：必须是完整字面量） */
+var DEVICE_SUB_CRUMBS={list:'device.list',approvals:'device.approvals'};
 function setSnavFold(group,open){
   var box=document.getElementById(SNAV_FOLDS[group]||'');
   if(!box)return;
@@ -144,10 +167,62 @@ function setSnavFold(group,open){
   var arrow=document.querySelector('.snav-arrow[data-group="'+group+'"]');
   if(arrow)arrow.setAttribute('aria-expanded',open?'true':'false');
 }
-function toggleSnavFold(group){
+function toggleSnavFold(group,el){
+  /* 折叠成图标条后行文字被 CSS 收掉、.snav-sub 也整块隐藏：这时点分组图标改成从侧栏
+     右缘飞出一列二级项，而不是去翻转一个看不见的容器 */
+  if(isSnavFolded()){
+    /* 一级项走的是内联 onclick，不传元素；锚点自己找——分组容器里的那个一级项，
+       飞窗就贴着它的右缘落下 */
+    if(!el){var g=document.getElementById('snav-group-'+group);el=g?g.querySelector('.tab'):null}
+    toggleSnavFlyout(group,el);return
+  }
   var box=document.getElementById(SNAV_FOLDS[group]||'');
   if(box)setSnavFold(group,box.hidden);
 }
+/* 折叠态飞窗：把这一组的二级项逐一列出（小图标 + 文字）。图标直接复用二级项自己标记里的
+   <svg>（单一数据源：图标只写在 markup 一处），切页也复用自己的 data-page/data-sub，
+   不另立「页 ↔ 项」映射表 */
+var _flyGroup=null,_flyKeepFold=false;
+function closeSnavFlyout(){
+  var f=document.getElementById('snav-flyout');
+  if(f)f.parentNode.removeChild(f);
+  _flyGroup=null;
+}
+function toggleSnavFlyout(group,el){
+  if(_flyGroup===group){closeSnavFlyout();return}
+  closeSnavFlyout();
+  var sub=document.getElementById(SNAV_FOLDS[group]||'');if(!sub||!el)return;
+  var f=document.createElement('div');f.className='snav-flyout';f.id='snav-flyout';
+  var n=0;
+  sub.querySelectorAll('.tab').forEach(function(t){
+    if(t.style.display==='none')return;   /* 无权分页在展开态就被收掉了，飞窗里同样不列 */
+    var page=t.dataset.page,lbl=t.querySelector('.lbl'),icon=t.querySelector('svg.ic');
+    var b=document.createElement('button');
+    b.type='button';b.className='fy-item'+(t.classList.contains('on')?' on':'');
+    b.dataset.act='snav-fly';b.dataset.page=page;
+    if(t.dataset.sub)b.dataset.sub=t.dataset.sub;
+    b.innerHTML=(icon?icon.outerHTML:'')+'<span>'+esc(lbl?lbl.textContent.trim():page)+'</span>';
+    f.appendChild(b);n++;
+  });
+  if(!n)return;
+  document.body.appendChild(f);
+  /* 贴着图标右缘落下；靠底时上收一点，别被视口切掉 */
+  var r=el.getBoundingClientRect();
+  f.style.left=Math.round(r.right+8)+'px';
+  f.style.top=Math.max(8,Math.min(Math.round(r.top),window.innerHeight-f.offsetHeight-8))+'px';
+  _flyGroup=group;
+}
+/* 点空白处 / 按 Esc / 滚动 / 改窗口大小都收起飞窗——它是「临时看一眼」的浮层 */
+document.addEventListener('click',function(e){
+  if(!_flyGroup)return;
+  var f=document.getElementById('snav-flyout');
+  if(f&&f.contains(e.target))return;
+  if(e.target.closest&&e.target.closest('.snav-group .tab'))return;  /* 再点分组图标由它自己开合 */
+  closeSnavFlyout();
+});
+document.addEventListener('keydown',function(e){if(e.key==='Escape')closeSnavFlyout()});
+document.addEventListener('scroll',function(){closeSnavFlyout()},true);
+window.addEventListener('resize',closeSnavFlyout);
 /* 窄屏抽屉：侧边栏 + 遮罩一起开合，按钮同步 aria-expanded */
 function setSidebar(open){
   var sb=document.getElementById('sidebar'),mk=document.getElementById('snav-mask'),
@@ -160,13 +235,17 @@ function setSidebar(open){
 var SNAV_FOLD_KEY='ink_snav_folded';
 function isSnavFolded(){
   var sh=document.querySelector('.shell');
-  return !!(sh&&sh.classList.contains('folded'));
+  /* 折叠只对宽屏成立：窄屏侧栏是抽屉，.shell.folded 可能从宽屏带过来，此时必须当作
+     没折叠（CSS 也是这么兜的），否则抽屉里的分组项会去开飞窗而不是就地展开 */
+  return !!(sh&&sh.classList.contains('folded')&&window.matchMedia('(min-width:901px)').matches);
 }
 function setSnavFolded(fold){
   var sh=document.querySelector('.shell');
   if(!sh)return;
   fold=!!fold;
   sh.classList.toggle('folded',fold);
+  /* 折叠状态一变，飞窗的锚点（图标位置）就不成立了，先收掉 */
+  closeSnavFlyout();
   try{localStorage.setItem(SNAV_FOLD_KEY,fold?'1':'0')}catch(e){}
   var bt=document.querySelector('[data-act="snav-fold-toggle"]');
   if(bt){
@@ -189,44 +268,47 @@ function syncNavTitles(){
   });
 }
 
-/* 设置模式：整条侧栏换成设置分类菜单，右侧只剩配置项。侧栏与右侧是一对一的，
-   进入/退出必须两边一起切，只换一边就会出现「左边列着 A、右边显示 B」 */
-var _setMode=false;
-function _paintSetMode(on){
-  document.getElementById('snav').hidden=on;
-  document.getElementById('snav-set').hidden=!on;
-  var back=document.querySelector('.snav-back');
-  if(back)back.hidden=!on;
-  /* 无 config 权限的用户本来就没有设置入口，退出设置时不能把它露出来 */
-  var st=document.getElementById('nav-set-btn');
-  if(st)st.hidden=on||!tabAllowed('config');
-  var hm=document.getElementById('nav-home-btn');
-  if(hm)hm.hidden=!on;
-  syncNavTitles();
-}
-function enterSettings(){
-  switchTab('config');
-  _setMode=true;
-  _paintSetMode(true);
-}
-function exitSettings(){
-  if(!_setMode)return;
-  _setMode=false;
-  _paintSetMode(false);
-  switchTab(_lastMainTab||'overview');
+/* 设置弹窗：设置不再是一个分页（原先点齿轮会把整条侧栏换成设置菜单、工作区切到 config 分页），
+   改成一个覆盖层弹窗盖在当前页之上。内容取自 <template id="settings-tpl">（左窄栏分类菜单 +
+   右宽栏配置项），容器 id 与旧实现一致，renderSetMenu / refreshConfig 无需改引用。
+   开合复用共享层：X / 点遮罩 / Esc 都走 _closeOverlay，_trapFocus 接管焦点 */
+function openSettingsModal(){
+  if(document.getElementById('settings-modal'))return;
+  var tpl=document.getElementById('settings-tpl');
+  if(!tpl)return;
+  var ov=document.createElement('div');ov.className='modal-overlay';ov.id='settings-modal';
+  ov.setAttribute('role','dialog');ov.setAttribute('aria-modal','true');
+  var box=document.createElement('div');box.className='modal set-modal';
+  var head=document.createElement('div');head.className='modal-head set-modal-head';
+  var h=document.createElement('h2');h.textContent=T('nav.config','设置');
+  head.appendChild(h);
+  var x=document.createElement('button');
+  x.type='button';x.className='modal-x';x.innerHTML='&times;';
+  var xlab=esc(T('btn.close','关闭'));x.title=xlab;x.setAttribute('aria-label',xlab);
+  head.appendChild(x);
+  var body=document.createElement('div');body.className='set-modal-body';
+  body.innerHTML=tpl.innerHTML;
+  box.appendChild(head);box.appendChild(body);
+  ov.appendChild(box);
+  x.addEventListener('click',function(){_closeOverlay(ov)});
+  ov.addEventListener('mousedown',function(e){ov._down=(e.target===ov)});
+  ov.addEventListener('click',function(e){if(e.target===ov&&ov._down)_closeOverlay(ov)});
+  document.body.appendChild(ov);
+  _trapFocus(ov);
+  /* 拉配置并填右栏：renderSetMenu 建左栏分类、setSelect 选第一个分类渲染右栏 */
+  refreshConfig();
 }
 function paintCrumbs(name){
   var el=document.getElementById('crumbs');
   if(!el)return;
   var parts;
-  if(_setMode){
-    /* 设置模式右侧是「设置 / 分类」，与侧栏那份分类菜单同一层级。
-       分类名要等配置数据回来才知道，setSelect 里会再刷一次 */
-    parts=[T('nav.config','设置'),(_setCat&&_cfg)?_setCatName(_setCat,_cfg):''];
-    parts=parts.filter(function(x){return x});
-  }else if(name==='users'){
+  if(name==='users'){
     /* 二级视图在前面补一段分组名（用户组 / 账号 / 激活码 / 注册申请），与侧边栏层级一致 */
     parts=[T('nav.users','用户'),_userSub?T(USER_SUB_CRUMBS[_userSub]||'user.groups',''):''];
+    parts=parts.filter(function(x){return x});
+  }else if(name==='devices'){
+    /* 同上：设备总列表 / 设备签入审批 */
+    parts=[T('nav.devices','设备'),_deviceSub?T(DEVICE_SUB_CRUMBS[_deviceSub]||'device.list',''):''];
     parts=parts.filter(function(x){return x});
   }else if(name==='logs'||name==='stats'){
     parts=[T('nav.logs','日志'),T(CRUMBS[name],name)];
@@ -239,21 +321,34 @@ function paintCrumbs(name){
 }
 
 /* ================= 标签切换 ================= */
-var _activeTab='overview',_activeSub='',_lastMainTab='overview';
+/* 通知铃铛与顶栏用户名都是「我的」页专属：管理端只在「我的」页给出入口（用户控制台那边铃铛
+   是常驻顶栏的）。两者都紧贴深浅色切换按钮。铃铛槽用 display 开关而不是 hidden 属性——
+   `.icon-btn` 自带的 `display:inline-flex` 会盖掉 `[hidden]` 的 UA 规则，hidden 在那儿不管用 */
+function paintNotifSlot(page){
+  var slot=document.getElementById('notif-slot');
+  if(slot)slot.style.display=(page==='account')?'':'none';
+  /* 用户名同样只在「我的」页露在图标前面。无侧栏时 `.topbar-user` 里已经有一份名字，
+     两份并排会出现两个用户名，那种情况交给它、这里不再露 */
+  var nm=document.getElementById('top-name');
+  if(nm)nm.hidden=!(page==='account'&&HAS_NAV);
+}
+var _activeTab='overview',_activeSub='';
 function switchTab(name,sub){
-  /* 设置模式下点任何别的分页（如头像 → 我的）都要先把侧栏切回主菜单 */
-  if(_setMode&&name!=='config'){_setMode=false;_paintSetMode(false)}
+  /* 换页就收起飞窗：它是挂在 body 上的浮层，不跟页面一起走 */
+  closeSnavFlyout();
   _activeTab=name;_activeSub=sub||'';
-  /* 记下最后一个「主页」分页，退出设置时回到它（config 自己不算） */
-  if(name!=='config')_lastMainTab=name;
-  /* 折叠成图标条时右侧的二级项根本看不见：先把侧栏展回完整宽度，再谈展开分组 */
-  if(SNAV_FOLDS[name]&&isSnavFolded())setSnavFolded(false);
+  /* 折叠成图标条时右侧的二级项根本看不见：先把侧栏展回完整宽度，再谈展开分组。
+     从飞窗里选的不算——折叠是用户自己按的，飞窗本就是为折叠态准备的入口，不该替他弹回来 */
+  if(SNAV_FOLDS[name]&&isSnavFolded()&&!_flyKeepFold)setSnavFolded(false);
   /* 契约：data-page ↔ id="page-"+name。带 data-sub 的二级项只在子视图也匹配时点亮；
      分组标题（无 data-sub）在本组任一子视图下都保持点亮 */
   document.querySelectorAll('.tab').forEach(function(t){
     t.classList.toggle('on',t.dataset.page===name&&(!t.dataset.sub||t.dataset.sub===_activeSub));
   });
   document.querySelectorAll('.page').forEach(function(p){p.classList.toggle('on',p.id==='page-'+name)});
+  /* 铃铛与用户名只在「我的」页露出：顶栏其余部分是共用的，别的管理页不留入口（`#notif-slot`
+     初始 display:none、`#top-name` 初始 hidden，开机没走 switchTab 时也不会误显） */
+  paintNotifSlot(name);
   // 切到二级菜单里的页面时自动展开所在分组，否则选中的项藏在收起的分组里看不见
   var cur=document.querySelector('.tab.on');
   if(cur){
@@ -267,6 +362,7 @@ function switchTab(name,sub){
   if(name==='overview')refreshOverview();
   else if(name==='plugins')refreshPlugins();
   else if(name==='users')switchUserSubTab(sub||_userSub||'groups');
+  else if(name==='devices')switchDeviceSubTab(sub||_deviceSub||'list');
   else if(name==='test'){syncTestMode();refreshApiDocs()}
   else if(name==='logs'){if(sub)switchLogSubTab(sub);else refreshLogView()}
   else if(name==='cache')refreshCache();

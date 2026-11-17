@@ -36,6 +36,8 @@ async def admin_request_logs(request: Request):
         limit = max(1, min(int(request.query_params.get('limit', 100)), 500))
         offset = max(0, int(request.query_params.get('offset', 0)))
         plugin_name = request.query_params.get('plugin', None)
+        # 来源筛选：device / evkey / session / dev（日志页「设备」筛选项走这一列）
+        source = request.query_params.get('source', None) or None
         min_status_str = request.query_params.get('min_status', None)
         min_status = int(min_status_str) if min_status_str else None
         account_str = request.query_params.get('account', None)
@@ -45,8 +47,10 @@ async def admin_request_logs(request: Request):
         )
         logs, total = await asyncio.to_thread(
             lambda: (get_request_logs(limit=limit, offset=offset, plugin_name=plugin_name,
-                                      min_status=min_status, account_id=account_id),
-                     get_request_log_count(plugin_name=plugin_name, min_status=min_status, account_id=account_id)))
+                                      min_status=min_status, account_id=account_id,
+                                      source=source),
+                     get_request_log_count(plugin_name=plugin_name, min_status=min_status,
+                                           account_id=account_id, source=source)))
         from config import REQUEST_LOG_RETENTION_DAYS
         qsize, qmax = log_queue_size()
         return {
@@ -62,6 +66,7 @@ async def admin_export_request_logs(request: Request):
     try:
         format_type = request.query_params.get('format', 'csv')
         plugin_name = request.query_params.get('plugin', None)
+        source = request.query_params.get('source', None) or None
         min_status_str = request.query_params.get('min_status', None)
         min_status = int(min_status_str) if min_status_str else None
         # 导出跟随页面上的筛选：列表按账号筛过、导出却是全量，两边对不上会很难解释
@@ -72,19 +77,24 @@ async def admin_export_request_logs(request: Request):
         from config import LOG_EXPORT_MAX_ROWS
         logs = await asyncio.to_thread(
             get_request_logs, limit=LOG_EXPORT_MAX_ROWS, offset=0, plugin_name=plugin_name,
-            min_status=min_status, account_id=account_id)
+            min_status=min_status, account_id=account_id, source=source)
         output = io.StringIO()
         if format_type == 'csv':
             writer = csv.writer(output)
             writer.writerow([
                 t_req(request, 'log.col_time'), t_req(request, 'log.col_method'),
-                t_req(request, 'log.col_path'), t_req(request, 'log.col_plugin'),
+                t_req(request, 'log.col_source'), t_req(request, 'log.col_route'),
+                t_req(request, 'log.col_plugin'),
                 t_req(request, 'log.csv_account_id'), t_req(request, 'log.csv_status_code'),
                 t_req(request, 'log.csv_duration_ms'), t_req(request, 'log.col_error'),
                 t_req(request, 'log.csv_request_id'),
             ])
             for l in logs:
-                writer.writerow([utc_string_to_local(l['timestamp']), l['method'], l['path'], l['plugin_name'] or '', l['account_id'] if l['account_id'] is not None else '', l['status_code'], l['duration_ms'] or '', l['error'] or '', l['request_id'] or ''])
+                writer.writerow([utc_string_to_local(l['timestamp']), l['method'], l['source'] or '',
+                                 l['route'] or l['path'] or '', l['plugin_name'] or '',
+                                 l['account_id'] if l['account_id'] is not None else '',
+                                 l['status_code'], l['duration_ms'] or '', l['error'] or '',
+                                 l['request_id'] or ''])
         else:
             json.dump([dict(l) for l in logs], output, ensure_ascii=False, indent=2)
         content = output.getvalue()

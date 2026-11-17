@@ -24,13 +24,14 @@ var _groupList=[],_PER_PAGE=20,_registerDefaultId=0;
    组名（admin / Free）只是显示名，类别才是权限依据 */
 /* 分页清单只留名字：顶层常量不能调 T()（此时 #i18n-data 与共享脚本还没执行），
    展示文案一律走 _tabLabel 取词 */
-var _ADMIN_TABS=[['overview'],['plugins'],['users'],['test'],['logs'],
+var _ADMIN_TABS=[['overview'],['plugins'],['users'],['devices'],['test'],['logs'],
   ['cache'],['prerender'],['stats'],['config'],['backup']];
 /* 分页名 → 文案：与导航栏同源（nav.*），两边不会各写一套名字 */
 function _tabLabel(name){
   if(name==='overview')return T('nav.overview','概览');
   if(name==='plugins')return T('nav.plugins','插件');
   if(name==='users')return T('nav.users','用户');
+  if(name==='devices')return T('nav.devices','设备');
   if(name==='test')return T('nav.test','测试');
   if(name==='logs')return T('nav.logs','日志');
   if(name==='cache')return T('nav.cache','缓存');
@@ -78,7 +79,7 @@ function grpSearch(){
 function renderGroups(){
   var list=_groupList.filter(function(g){return matchQuery(_grpQuery,[g.name,g.id])});
   var pg=pgSlice(list,'groups',_PER_PAGE);
-  var h='<table><thead><tr><th class="num">ID</th><th>'+T('user.col_name','名称')+'</th><th class="col-dot">'+T('user.legend_mark','标记')+'</th><th class="num">'+T('user.col_max_evkeys','EVkey 上限')+'</th><th class="num">'+T('user.col_max_concurrent','最大并发')+'</th><th class="num">'+T('user.col_rate','每分钟速率')+'</th><th class="num">'+T('user.col_quota','请求配额')+'</th><th class="col-act">'+T('core.col_action','操作')+'</th></tr></thead><tbody>';
+  var h='<table><thead><tr><th class="num">ID</th><th>'+T('user.col_name','名称')+'</th><th class="col-dot">'+T('user.legend_mark','标记')+'</th><th class="num">'+T('user.col_max_evkeys','EVkey 上限')+'</th><th class="num">'+T('device.col_max_devices','设备上限')+'</th><th class="num">'+T('user.col_max_concurrent','最大并发')+'</th><th class="num">'+T('user.col_rate','每分钟速率')+'</th><th class="num">'+T('user.col_quota','请求配额')+'</th><th class="col-act">'+T('core.col_action','操作')+'</th></tr></thead><tbody>';
   pg.rows.forEach(function(g){
     var isDefault=g.id===_registerDefaultId,isAdmin=g.category==='admin';
     // 内置管理组拥有全部权限，整组锁定：编辑与权限配置都禁用（后端同样会拒）
@@ -91,6 +92,8 @@ function renderGroups(){
       '<td class="col-dot"><span class="dot-cell">'+marks+groupCategoryBadge(g)+'</span></td>'+
       // 管理组的两项限额在服务端被折算成「不限」，表格照库里的值显示就成了假信息
       '<td class="num">'+esc(isAdmin?T('user.unlimited','不限'):evkeyLimitText(g.max_evkeys))+'</td>'+
+      // 设备上限同样：管理组在服务端被折算成「不限」，照库里的值显示就是假信息
+      '<td class="num">'+esc(isAdmin?T('user.unlimited','不限'):devLimitText(_intVal(g.max_devices,-1)))+'</td>'+
       '<td class="num">'+(isAdmin?T('user.unlimited','不限'):((g.max_concurrent_renders||0)||T('user.unlimited','不限')))+'</td>';
     h+='<td class="num">'+((g.rate_limit_per_minute||0)||T('user.unlimited','不限'))+'</td><td class="num">'+esc(quotaText(g))+'</td>';
     // 删除按钮保留但禁用：内置组与「还有激活码开通的未到期账号」的组都删不得，
@@ -117,7 +120,7 @@ function renderGroups(){
       '</div></td></tr>';
   });
   // 搜不到与本来就没有要分开说：否则加了搜索框会让人以为用户组全没了
-  if(!pg.rows.length)h+='<tr><td colspan="8" class="empty">'+(_grpQuery?T('user.no_match_groups','没有匹配的用户组'):T('user.no_groups','暂无用户组'))+'</td></tr>';
+  if(!pg.rows.length)h+='<tr><td colspan="9" class="empty">'+(_grpQuery?T('user.no_match_groups','没有匹配的用户组'):T('user.no_groups','暂无用户组'))+'</td></tr>';
   document.getElementById('groups-area').innerHTML=h+'</tbody></table>'+pg.bar;
   _pgRender['groups']=renderGroups;
 }
@@ -147,7 +150,7 @@ function syncGroupTabs(){
      框里显示的是生效值（evkey -1 / 并发 0）而不是库里的数：表格列与「我的」页都报
      「不限」，这里再摆一个 3 就成了自相矛盾。库里那份留在 data-orig，改回用户组时
      还原，保存时也照它写回，展示用的占位值不会被存进库 */
-  [['gmax',-1],['gconc',0]].forEach(function(p){
+  [['gmax',-1],['gdev',-1],['gconc',0]].forEach(function(p){
     var el=document.getElementById(p[0]);
     if(!el)return;
     el.disabled=isAdmin;
@@ -186,16 +189,19 @@ function showGroupModal(id){
       '<div class="ck-list">'+
         '<label><input type="checkbox" id="gann"'+(g.builtin||_intVal(g.show_announcement,1)?' checked':'')+
         (g.builtin?' disabled':'')+'>'+T('user.show_announce','显示概览页的站内信卡片')+'</label></div></div>'+
-    '<label>'+T('user.max_evkeys_label','EVkey 上限（-1 = 不限，0 = 禁止创建，N = 最多 N 个）')+'</label><input class="input" type="number" id="gmax" data-orig="'+_intVal(g.max_evkeys,3)+'" value="'+_intVal(g.max_evkeys,3)+'" min="-1"'+(isAdmin?' disabled':'')+'>'+
-    '<label>'+T('user.max_concurrent_label','最大并发渲染（0 = 不限，按账号独立计数，优先级高于全局配置）')+'</label><input class="input" type="number" id="gconc" data-orig="'+(g.max_concurrent_renders||0)+'" value="'+(g.max_concurrent_renders||0)+'" min="0"'+(isAdmin?' disabled':'')+'>'+
-    '<div class="dim small" id="glim-note" style="display:'+(isAdmin?'':'none')+';margin-top:8px">'+T('user.admin_limit_note','管理组不受 EVkey 数量与并发数量限制，这两项始终按「不限」执行。')+'</div>'+
-    '<label>'+T('user.rate_label','每分钟请求速率（0 = 不限，按账号独立计数）')+'</label><input class="input" type="number" id="gmr" value="'+(g.rate_limit_per_minute||0)+'" min="0">'+
-    '<label>'+T('user.quota_label','请求配额上限（0 = 不限，按账号独立计数，同账号下所有 EVkey 共用）')+'</label><input class="input" type="number" id="gquota" value="'+_intVal(g.quota_limit,0)+'" min="0">'+
+    '<label>'+T('user.max_evkeys_label','EVkey 上限（-1 不限，0 禁止，N 上限）')+'</label><input class="input" type="number" id="gmax" data-orig="'+_intVal(g.max_evkeys,3)+'" value="'+_intVal(g.max_evkeys,3)+'" min="-1"'+(isAdmin?' disabled':'')+'>'+
+    /* 设备上限：-1 = 不限（默认），0 = 禁止签入，N = 最多 N 台。按用户组生效；
+       已经属于该账号的设备不重复占名额，同一台设备反复签入不会被自己挡住 */
+    '<label>'+T('user.max_devices_label','设备上限（-1 不限，0 禁止，N 上限）')+'</label><input class="input" type="number" id="gdev" data-orig="'+_intVal(g.max_devices,-1)+'" value="'+_intVal(g.max_devices,-1)+'" min="-1"'+(isAdmin?' disabled':'')+'>'+
+    '<label>'+T('user.max_concurrent_label','最大并发渲染（0 不限，优先于全局配置）')+'</label><input class="input" type="number" id="gconc" data-orig="'+(g.max_concurrent_renders||0)+'" value="'+(g.max_concurrent_renders||0)+'" min="0"'+(isAdmin?' disabled':'')+'>'+
+    '<div class="dim small" id="glim-note" style="display:'+(isAdmin?'':'none')+';margin-top:8px">'+T('user.admin_limit_note','管理组不受 EVkey、设备与并发数量限制，始终按「不限」执行。')+'</div>'+
+    '<label>'+T('user.rate_label','每分钟请求速率（0 不限）')+'</label><input class="input" type="number" id="gmr" value="'+(g.rate_limit_per_minute||0)+'" min="0">'+
+    '<label>'+T('user.quota_label','请求配额上限（0 不限，同账号共用）')+'</label><input class="input" type="number" id="gquota" value="'+_intVal(g.quota_limit,0)+'" min="0">'+
     '<label>'+T('user.quota_period_label','配额模式')+'</label><select class="input" id="gperiod">'+
       '<optgroup label="'+T('user.period_group','按时间周期（到期自动重置）')+'">'+
         _QUOTA_UNITS.map(function(p){return '<option value="'+p[0]+'"'+(period===p[0]?' selected':'')+'>'+T(p[1],p[2])+'</option>'}).join('')+
       '</optgroup>'+
-      '<optgroup label="'+T('user.trial_group','按次总量（该账号一共就这么多，用完即止）')+'">'+
+      '<optgroup label="'+T('user.trial_group','按次总量（用完即止）')+'">'+
         '<option value="trial"'+(period==='trial'?' selected':'')+'>'+T('user.period_trial','总量（永不重置）')+'</option>'+
       '</optgroup>'+
     '</select>'+
@@ -214,13 +220,14 @@ function saveGroup(id,btn){
   /* 管理组看到的这两项是「不限」的占位值（-1 / 0），不代表组配置：写回库里原本那份，
      否则每次编辑管理组都会把配置悄悄改写成 -1/0，将来改成用户组就变成真·不限了 */
   var maxv=_intVal(gcat==='admin'?document.getElementById('gmax').dataset.orig:document.getElementById('gmax').value,3);
+  var gdev=_intVal(gcat==='admin'?document.getElementById('gdev').dataset.orig:document.getElementById('gdev').value,-1);
   var gconc=_intVal(gcat==='admin'?document.getElementById('gconc').dataset.orig:document.getElementById('gconc').value,0);
   if(!n){toast(T('user.need_group_name','请输入用户组名称'),'error');return}
   /* 名称在库里是唯一的（后端也会拒），这里先按已加载的列表拦一道：
      重名是高频的输入失误，当场提示比等一个来回更直接。后端那道是最终关口，不重复删 */
   if(_isGroupNameTaken(n,id)){toast(T('msg.group_name_taken','已存在名为「{name}」的用户组，请换一个名称',{name:n}),'error');return}
   if(gcat==='admin'&&!_tabSetCsv()){toast(T('user.need_admin_tab','管理组至少要勾选一个后台分页'),'error');return}
-  var body={name:n,max_evkeys:maxv,max_concurrent_renders:gconc,
+  var body={name:n,max_evkeys:maxv,max_devices:gdev,max_concurrent_renders:gconc,
     rate_limit_per_minute:gmr,quota_limit:gquota,quota_period:gperiod,
     category:gcat,admin_tabs:gcat==='admin'?_tabSetCsv():'',
     /* 站内信开关只对管理组有意义；用户组一律写 1，避免从管理组改成用户组时把 0 留在库里 */
@@ -411,13 +418,13 @@ function showCodeModal(){
       return '<option value="'+g.id+'"'+(_codeFilter===g.id?' selected':'')+'>'+esc(g.name)+'</option>';
     }).join('');
     var h='<h3>'+T('user.gen_codes_title','生成激活码')+'</h3>'+
-      '<p class="dim small modal-sub">'+T('user.code_note','激活码属于某个用户组：用户在注册页填写，或登录后在个人控制台「我的会员」里输入，即可进入该组')+'</p>'+
+      '<p class="dim small modal-sub">'+T('user.code_note','激活码绑定用户组，在注册页或个人控制台「我的会员」输入即可加入该组')+'</p>'+
       '<label>'+T('user.target_group','目标用户组')+'</label><select class="input" id="c-group" onchange="rebuildCodeFallback()">'+opts+'</select>'+
-      '<label>'+T('user.uses_label','可激活账号数（0 = 不限；填 N 则第 N 个账号激活后该码立即销毁）')+'</label><input class="input" type="number" min="0" id="c-max" placeholder="0">'+
-      '<label>'+T('user.expires_label','激活码有效日期（留空 = 永不过期，过期后自动销毁）')+'</label><input class="input" type="date" id="c-exp">'+
+      '<label>'+T('user.uses_label','可激活账号数（0 不限；填 N 则第 N 个激活后销毁）')+'</label><input class="input" type="number" min="0" id="c-max" placeholder="0">'+
+      '<label>'+T('user.expires_label','激活码有效日期（留空 = 永不过期）')+'</label><input class="input" type="date" id="c-exp">'+
       '<label>'+T('user.duration_label','激活后账号有效期（天，0 = 永久有效）')+'</label><input class="input" type="number" min="0" id="c-days" placeholder="0">'+
       '<label>'+T('user.fallback_label','账号到期后转入')+'</label><select class="input" id="c-fallback"></select>'+
-      '<div class="ck-list"><label><input type="checkbox" id="c-repeat">'+T('user.repeat_label','允许同一账号反复激活（续期叠加，每次照常占一个可激活账号名额）')+'</label></div>'+
+      '<div class="ck-list"><label><input type="checkbox" id="c-repeat">'+T('user.repeat_label','允许同一账号反复激活（续期叠加，仍占名额）')+'</label></div>'+
       '<label>'+T('user.note_label','备注（选填）')+'</label><input class="input" id="c-note" placeholder="'+T('user.note_ph','例如：双十一活动')+'" autocomplete="off">'+
       '<div class="modal-actions"><button class="btn" data-act="modal-close">'+T('btn.cancel','取消')+'</button>'+
       '<button class="btn btn-primary" data-act="code-save">'+T('user.gen','生成')+'</button></div>';
@@ -445,7 +452,7 @@ function createCode(btn){
     btnBusy(btn,false);
     if(d.success===false){toast(d.message||T('user.gen_failed','生成失败'),'error');return}
     var m=document.getElementById('code-modal');if(m)m.remove();
-    showSecret(T('user.code_generated','激活码已生成'),d.code,T('user.code_generated_note','交给用户：注册页填写，或登录后在个人控制台「我的会员」里输入，即可进入「{name}」；仅此一次完整展示。',{name:gname}));
+    showSecret(T('user.code_generated','激活码已生成'),d.code,T('user.code_generated_note','在注册页或个人控制台「我的会员」输入即可加入「{name}」；仅此一次完整展示。',{name:gname}));
     refreshCodes();
   }).catch(function(){btnBusy(btn,false);toast(T('msg.network_error','网络错误'),'error')});
 }
@@ -860,8 +867,15 @@ var _acctEvkeys={id:0,items:[],max:0};
 function acctEvkeysRender(){
   var evkeys=_acctEvkeys.items,maxv=_acctEvkeys.max,id=_acctEvkeys.id;
   // -1 = 不限，0 = 禁止创建，N = 最多 N 个（0 是禁止，不能标成「上限 0 个」被读成不限）
-  var note=maxv<0?T('user.group_unlimited_note','（该组不限数量）'):(maxv===0?T('user.group_forbid_note','（该组禁止创建）'):T('user.group_max_note','（上限 {n} 个）',{n:maxv}));
-  var h='<p class="dim small modal-sub">'+T('user.evkey_used_note','已使用 {n} 个{note}',{n:evkeys.length,note:note})+'</p>';
+  var note=maxv<0?T('user.group_unlimited_note','（该组不限数量）'):(maxv===0?T('user.group_forbid_note','（该组禁止创建）'):T('user.group_max_note','（上限 {n}）',{n:maxv}));
+  // 工具条在上、列表在下、中间一条分隔线：空数据时按钮不会被一大块留白推到页面底部，
+  // 「这里是操作、下面是列表」一眼分得清。左端是操作，右端是计数
+  var h='<div class="list-tool">';
+  // -1 = 不限，恒可生成；0 = 禁止，不给按钮（后端也会拒）；到上限时也不给，计数里已写明上限
+  if(maxv===0)h+='<span class="dim small">'+T('user.evkey_forbidden','该用户组不允许创建 EVkey')+'</span>';
+  else if(maxv<0||evkeys.length<maxv)h+='<button class="btn btn-sm btn-primary" data-act="evkey-gen" data-id="'+id+'">'+T('user.gen_evkey','+ 生成新 EVkey')+'</button>';
+  h+='<span class="grow"></span><span class="dim small">'+T('user.evkey_used_note','已使用 {n}{note}',{n:evkeys.length,note:note})+'</span>';
+  h+='</div>';
   if(evkeys.length){
     var pg=pgSlice(evkeys,'acct-evkeys',5);
     h+='<table><thead><tr><th>EVkey</th><th>'+T('plugin.col_desc','描述')+'</th><th class="col-state">'+T('user.legend_status','状态')+'</th><th class="col-act">'+T('core.col_action','操作')+'</th></tr></thead><tbody>';
@@ -875,10 +889,6 @@ function acctEvkeysRender(){
     });
     h+='</tbody></table>'+pg.bar;
   }else h+='<div class="empty">'+T('user.no_evkeys','暂无 EVkey')+'</div>';
-  // -1 = 不限，恒可生成；0 = 禁止，不给按钮（后端也会拒）
-  if(maxv===0)h+='<p class="dim small" style="margin-top:8px">'+T('user.evkey_forbidden','该用户组不允许创建 EVkey')+'</p>';
-  else if(maxv<0||evkeys.length<maxv)h+='<div class="field-row" style="margin-top:8px">'+
-    '<button class="btn btn-sm btn-primary" data-act="evkey-gen" data-id="'+id+'">'+T('user.gen_evkey','+ 生成新 EVkey')+'</button></div>';
   _acctDetailBody(h);
 }
 function loadAccountEvkeys(id){
@@ -903,7 +913,7 @@ function genEvkey(id,btn){
   R.post('/admin/api/accounts/'+id+'/evkeys',{}).then(function(d){
     btnBusy(btn,false);
     if(d.evkey){
-      showSecret(T('user.evkey_generated','新 EVkey 已生成'),d.evkey,T('user.evkey_generated_note','请复制并妥善保存，设备侧使用该 EVkey 鉴权。'));
+      showSecret(T('user.evkey_generated','新 EVkey 已生成'),d.evkey,T('user.evkey_generated_note','请复制并妥善保存，设备侧用它鉴权。'));
       refreshAccountDetail();
     }
     else toast(d.message||T('user.gen_failed','生成失败'),'error');
@@ -940,7 +950,7 @@ function acctUsageRender(){
     pg.rows.forEach(function(r){s+=row(r)});
     return s+'</tbody></table>'+pg.bar;
   }
-  var h='<p class="dim small modal-sub">'+T('user.usage_note','按天与按插件为长期累计，不受日志清理影响；窗口为最近 {days} 天',{days:days})+'</p>';
+  var h='<p class="dim small modal-sub">'+T('user.usage_note','按天/按插件为长期累计；窗口为最近 {days} 天',{days:days})+'</p>';
   h+=section(T('user.by_day','按天'),'<th>'+T('user.col_date','日期')+'</th><th class="num">'+T('stats.col_requests','请求')+'</th><th class="num">'+T('stats.col_errors','错误')+'</th><th class="num">'+T('test.kpi_avg','平均耗时')+'</th>',_acctUsage.daily,'acct-usage-day',function(r){
     return '<tr><td class="mono">'+esc(r.date)+'</td><td class="num">'+num(r.total)+'</td><td class="num'+(r.errors>0?' err-text':'')+'">'+num(r.errors)+'</td><td class="mono dim num">'+(r.avg_ms!=null?r.avg_ms+'ms':'-')+'</td></tr>';
   });
@@ -1021,7 +1031,7 @@ function quotaPaneHtml(d){
   var note=(String(d.period)==='trial')
     ?T('user.trial_note','按次总量：用完即止、永不自动重置')
     :T('user.periodic_note','{period}：到期自动重置，未用部分不结转（额度不累加）',{period:_periodLabel(d.period)});
-  var h='<p class="dim small modal-sub">'+T('user.quota_note','实际额度 = 用户组配额 + 累计发放额；当前为 {note}',{note:note})+'</p>';
+  var h='<p class="dim small modal-sub">'+T('user.quota_note','实际额度 = 用户组配额 + 累计发放额（当前 {note}）',{note:note})+'</p>';
   /* 弹窗宽度 680px：默认的 minmax(180px,1fr) 会把四个指标排成 3+1，这里收窄到 140px 让它们一行排满 */
   h+='<div class="metrics" style="grid-template-columns:repeat(auto-fit,minmax(140px,1fr));margin-bottom:4px">'+
     kpi(T('user.kpi_actual','实际额度'),unlimited?T('user.unlimited','不限'):T('user.times','{n}',{n:num(d.limit)}))+
@@ -1031,7 +1041,7 @@ function quotaPaneHtml(d){
     '</div>';
   h+='<div class="sec-title">'+T('user.grant_title','发放额度')+'</div>';
   if(unlimited){
-    h+='<div class="panel" style="margin-bottom:8px">'+T('user.quota_unlimited_note','用户组「{name}」的配额为 <b>不限</b>，无需发放；若要限制用量，请先在用户组里设置配额上限。',{name:esc(d.group_name||'')})+'</div>';
+    h+='<div class="panel" style="margin-bottom:8px">'+T('user.quota_unlimited_note','用户组「{name}」配额<b>不限</b>，无需发放。',{name:esc(d.group_name||'')})+'</div>';
   }
   h+='<div class="field-row">'+
     [500,1000,2000].map(function(n){
@@ -1042,14 +1052,14 @@ function quotaPaneHtml(d){
     '</div>';
   /* 原因单独一行并占满宽度：跟在按钮后面挤成 160px 时，稍微长一点的原因就被截断看不全 */
   h+='<div class="field-row" style="margin-top:8px">'+
-    '<input class="input" id="q-greason" placeholder="'+T('user.grant_reason_ph','发放原因（选填，会记入变动记录）')+'"'+(unlimited?' disabled':'')+'>'+
+    '<input class="input" id="q-greason" placeholder="'+T('user.grant_reason_ph','发放原因（选填）')+'"'+(unlimited?' disabled':'')+'>'+
     '</div>';
   h+='<div class="sec-title">'+T('user.reset_used_title','重置本周期已用')+'</div>';
   h+='<div class="field-row">'+
-    '<input class="input" id="q-rreason" placeholder="'+T('user.reset_reason_ph','重置原因（选填，会记入变动记录）')+'"'+(unlimited?' disabled':'')+'>'+
+    '<input class="input" id="q-rreason" placeholder="'+T('user.reset_reason_ph','重置原因（选填）')+'"'+(unlimited?' disabled':'')+'>'+
     '<button class="btn btn-sm" data-act="quota-reset" data-id="'+d.account_id+'"'+(unlimited?' disabled':'')+'>'+T('user.manual_reset','手动重置')+'</button>'+
     '</div>';
-  h+='<div class="small dim" style="margin-top:8px">'+T('user.quota_help','发放的额度累加到账号、长期有效，填负数即回收；重置只清除本周期用量，已发放额度保留。')+'</div>';
+  h+='<div class="small dim" style="margin-top:8px">'+T('user.quota_help','发放额度累加到账号、长期有效，填负数即回收；重置只清本周期用量。')+'</div>';
   /* 图例挂在标题右侧而不是独占一行：弹窗空间紧凑，多一行会把表格再往下推 */
   h+='<div class="sec-title" style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">'+T('user.log_title','变动记录')+
     '<span class="dot-legend" style="margin-top:0"><span class="lg-row">'+
@@ -1142,14 +1152,14 @@ function showMembership(id,name){
     if(a.is_default_admin){
       h+='<p class="dim small modal-sub">'+T('user.builtin_acct_mem_locked','内置管理账号不可改组或调整会员，仅可查看变动记录')+'</p>';
     }else{
-      h+='<p class="dim small modal-sub">'+T('user.mem_sub','改组、提前结束或延长会员到期日、改到期回落组都会留一条记录，含前后值与操作人')+'</p>'+
+      h+='<p class="dim small modal-sub">'+T('user.mem_sub','改组、改到期日或改回落组都会留一条记录（含前后值与操作人）')+'</p>'+
         '<label>'+T('user.groups','用户组')+'</label><select class="input" id="m-group">'+gh+'</select>'+
         '<label>'+T('user.membership_expires_label','会员到期日（留空 = 永久有效）')+'</label><input class="input" type="date" id="m-exp" value="'+esc(a.expires_on||'')+'">'+
         '<label>'+T('user.membership_fallback_label','到期后转入（不能是管理组）')+'</label><select class="input" id="m-fallback">'+fh+'</select>'+
-        '<label>'+T('user.reason_label','操作原因（选填，会记入下方记录）')+'</label><input class="input" id="m-reason" autocomplete="off" placeholder="'+T('user.reason_ph','例如：活动赠送 / 用户申请延长')+'">'+
+        '<label>'+T('user.reason_label','操作原因（选填）')+'</label><input class="input" id="m-reason" autocomplete="off" placeholder="'+T('user.reason_ph','例如：活动赠送 / 用户申请延长')+'">'+
         '<div class="modal-actions"><button class="btn btn-primary" data-act="mem-save" data-id="'+id+'">'+T('user.save_changes','保存变更')+'</button></div>';
     }
-    h+='<div class="sec-title" style="border-top:1px solid var(--line);padding-top:16px">'+T('user.log_title_count','变动记录（共 {n} 条）',{n:num(d.total||0)})+'</div>'+
+    h+='<div class="sec-title" style="border-top:1px solid var(--line);padding-top:16px">'+T('user.log_title_count','变动记录（{n}）',{n:num(d.total||0)})+'</div>'+
       '<div id="mem-log-body"></div><div id="mem-log-bar"></div>';
     var old=document.getElementById('mem-modal');if(old)old.remove();
     openModal(h,'mem-modal');
@@ -1199,7 +1209,7 @@ function appBarHtml(){
   var keys=Object.keys(_appSel);
   if(!keys.length)return '';
   var n=appSelPendingIds().length;
-  return '<div class="batchbar"><span>'+T('user.sel_apps','已选 {a} 个账号 · {b} 个待审批申请',{a:'<span class="cnt">'+keys.length+'</span>',b:'<span class="cnt">'+n+'</span>'})+'</span><span class="sp"></span>'+
+  return '<div class="batchbar"><span>'+T('user.sel_apps','已选 {a} 账号 · {b} 待审批',{a:'<span class="cnt">'+keys.length+'</span>',b:'<span class="cnt">'+n+'</span>'})+'</span><span class="sp"></span>'+
     '<button class="btn btn-sm btn-primary" data-act="app-batch" data-op="approve"'+(n?'':' disabled')+'>'+T('user.batch_approve','批量批准')+'</button>'+
     '<button class="btn btn-sm btn-danger" data-act="app-batch" data-op="reject"'+(n?'':' disabled')+'>'+T('user.batch_reject','批量拒绝')+'</button>'+
     '<button class="btn btn-sm btn-ghost" data-act="app-clear">'+T('user.clear_sel','取消选择')+'</button></div>';

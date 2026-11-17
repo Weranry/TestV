@@ -30,11 +30,11 @@ public_dir = os.path.join(project_root, 'public')
 # 不写请求日志的路径前缀（静态资源、管理面板自身、登录/注册/找回密码、访客导航页、探针与指标出口）。
 # /metrics 会进这里至关重要：监控按秒轮询，记进 request_logs 就是拿日志表换指标，
 # 日志保留期一到还得反复删除——探针与指标本就不该占用业务日志。
-# /device 进这里是为了把设备面与插件统计彻底隔开：设备请求的首段路径是 device，
-# 若哪天真有个叫 device 的插件被装上，设备心跳就会被记成该插件的请求、污染统计口径。
-# 设备侧的在线状态由 devices.last_seen_at / last_status 自己记，不依赖 request_logs。
+# /device 不在这里：设备请求单独以 plugin_name='device' 记入请求日志，方便在面板里看到
+# 「设备什么时候来取过图 / 报过遥测」。它不参与账号用量与手机插件统计（那两处只认真实插件），
+# 因此不会把设备心跳算进某个同名插件；在线状态仍以 devices.last_seen_at / last_status 为准。
 _LOG_SKIP_PREFIXES = ('/public', '/favicon.ico', '/admin', '/login', '/register',
-                      '/reset-password', '/explore', '/healthz', '/metrics', '/device')
+                      '/reset-password', '/explore', '/healthz', '/metrics')
 _LOCAL_MODES = ('dev', 'prod')
 
 # 请求体上限的放行名单（见 BodyLimitMiddleware）：探针、指标出口与静态资源都没有 body，
@@ -47,7 +47,7 @@ _BODY_LIMIT_SKIP_PATHS = ('/admin/api/backup/restore', '/admin/api/plugins/insta
 
 # 框架版本：/healthz 的返回值、FastAPI app.version 与插件清单的 min_framework_version
 # 判定共用这一份来源，避免三处各写一个字面量。
-FRAMEWORK_VERSION = '1.0.18'
+FRAMEWORK_VERSION = '1.0.33'
 
 # 未完成初始化时插件路由的拒绝文案（与首页提示同一件事，见 setup_gate_middleware）
 _SETUP_MESSAGE = '系统尚未完成初始化：请先在 /login 用初始账号 admin / admin123 登录并立即修改密码'
@@ -263,12 +263,18 @@ def create_app(mode='vercel'):
         set_db_disabled(True)
         set_cache_enabled(False)
 
-    app.add_middleware(
-        CORSMiddleware,
-        allow_origins=['*'],
-        allow_methods=['*'],
-        allow_headers=['*'],
-    )
+    # CORS 默认完全不放开：管理面板、个人控制台与插件页面都是同源访问，浏览器不需要
+    # Access-Control-Allow-Origin 也能正常用；原来 allow_origins=['*'] + 全方法全请求头
+    # 等于允许任意站点在访客浏览器里跨源调用本服务接口。确有第三方跨源前端时，用
+    # CORS_ALLOW_ORIGINS（逗号分隔）显式列出可信来源。
+    _cors_origins = [o.strip() for o in os.environ.get('CORS_ALLOW_ORIGINS', '').split(',') if o.strip()]
+    if _cors_origins:
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=_cors_origins,
+            allow_methods=['*'],
+            allow_headers=['*'],
+        )
 
     if is_local:
         # 只给 HTML 页面（管理面板 / 登录页 / 个人控制台）加防护头：
@@ -321,11 +327,11 @@ def create_app(mode='vercel'):
                 # 用户组访问控制静默旁路掉：一旦权限缓存/模块导入出问题，所有受限插件与
                 # 路由对所有人开放，而且不留任何痕迹。宁可误拒也不放行。
                 plog.exception('用户组权限校验失败，已拒绝访问')
-                return error_response('权限校验失败，已拒绝访问', 503)
+                return error_response(t_req(request, 'api.err_perm_denied'), 503)
             if not plugin_ok:
-                return error_response(f'用户组无权访问插件 {plugin_name}', 403)
+                return error_response(t_req(request, 'api.err_no_plugin', plugin=plugin_name), 403)
             if not route_ok:
-                return error_response(f'用户组无权访问路由 {request.url.path}', 403)
+                return error_response(t_req(request, 'api.err_no_route', route=request.url.path), 403)
 
         response = await call_next(request)
         if plugin_name in states:
@@ -397,10 +403,13 @@ def create_app(mode='vercel'):
             try:
                 parts = path.strip('/').split('/')
                 plugin_name = parts[0] if parts else None
+                is_device = path == '/device' or path.startswith('/device/')
 
-                # 只记录真实插件的请求：/、/openapi.json、/@vite/client、/user 这类
-                # 首段不是已加载插件的流量记进来只是噪音，统计口径也与 plugin_stats 不符
-                if plugin_name not in getattr(request.app.state, 'plugin_states', {}):
+                # 设备面单独记成 'device'；其余只记录真实插件的请求：/、/openapi.json、
+                # /@vite/client、/user 这类首段不是已加载插件的流量记进来只是噪音
+                if is_device:
+                    plugin_name = 'device'
+                elif plugin_name not in getattr(request.app.state, 'plugin_states', {}):
                     return response
 
                 # 这一列存的是「响应信息」（日志页表头也是这个叫法），4xx 也留：
@@ -419,9 +428,19 @@ def create_app(mode='vercel'):
                         error = str(response.status_code)
 
                 # 落到日志时 auth 中间件已写好 request.state.user；环境变量 EVKEY
-                # 鉴权没有账号身份，account_id 记 NULL
+                # 鉴权没有账号身份，account_id 记 NULL。设备请求没有登录态，由设备路由
+                # 在鉴权后把属主写进 state，日志里就能按账号筛选「我的设备来取过图」
                 user = getattr(request.state, 'user', None) or {}
                 account_id = user.get('id') if isinstance(user, dict) else None
+                if is_device:
+                    account_id = getattr(request.state, 'device_account_id', None)
+
+                # 请求来源：设备令牌 / EVKEY / 控制台会话 / 开发模式放行（auth 中间件写
+                # auth_source）。日志页用「来源」列区分谁在请求，不再从 plugin_name 反推
+                source = 'device' if is_device else getattr(request.state, 'auth_source', '')
+                # 真实内容路由：设备取图时由设备路由把渲染项路由写进 state，其余请求
+                # 就是请求路径本身
+                route = getattr(request.state, 'log_route', '') or path
 
                 from modules.database.logs import log_request
                 log_request(
@@ -431,6 +450,7 @@ def create_app(mode='vercel'):
                     account_id,
                     getattr(request.state, 'prerender_hit', False),
                     request_id,
+                    source=source, route=route,
                 )
 
                 # 账号维度用量：内存里按天累计，由后台刷盘线程落库到 account_stats。
@@ -501,6 +521,65 @@ def create_app(mode='vercel'):
             skip_prefixes=_BODY_LIMIT_SKIP_PREFIXES,
             skip_paths=_BODY_LIMIT_SKIP_PATHS,
         )
+
+        # 设备面响应兜底：**最后注册 = 最外层**，因而能看到限流中间件、setup 门禁、
+        # 请求体上限与异常处理器返回的响应。只补协议头，不改状态码与包体。
+        #
+        # 为什么必须有：固件按响应里的秒数深睡。成功响应由路由自己下发全套头，而错误
+        # （429 额度耗尽 / 401 令牌失效 / 503 插件停用 / 500 渲染失败）如果没有睡眠指令，
+        # 固件只能立刻重试——变成热循环，射频与电池先扛不住。
+        @app.middleware('http')
+        async def device_protocol_middleware(request: Request, call_next):
+            path = request.url.path
+            is_device = path == '/device' or path.startswith('/device/')
+            try:
+                response = await call_next(request)
+            except Exception as exc:
+                # 未处理异常由 ServerErrorMiddleware 兜底，而它在本中间件**外层**：响应
+                # 不会流回这里，固件就拿不到睡眠指令。设备面就地走同一个 500 出口。
+                if not is_device:
+                    raise
+                from modules.errors.errors import general_exception_handler
+                response = await general_exception_handler(request, exc)
+
+            if not is_device:
+                return response
+
+            now_epoch = str(int(time.time()))
+            if response.status_code < 400 and response.status_code != 202:
+                # 正常响应（含取图 304）已由路由写好睡眠 / ETag / 校时，这里只兜底补校时
+                response.headers.setdefault('X-Device-Epoch', now_epoch)
+                return response
+
+            status = response.status_code
+            # 202 是配对「等用户认领」的受理态，节奏由包体里的 retry_after 决定：
+            # 这里不套抖动，也不套 60 秒下限，否则设备会把 5 秒的轮询等成 1 分钟。
+            if status == 202:
+                sleep_seconds = 5
+            elif status == 429:
+                sleep_seconds = int(
+                    getattr(config, 'DEVICE_RATE_LIMIT_SLEEP_SECONDS', 60) or 0)
+            elif status in (401, 403):
+                sleep_seconds = int(
+                    getattr(config, 'DEVICE_AUTH_ERROR_SLEEP_SECONDS', 600) or 0)
+            else:
+                sleep_seconds = int(getattr(config, 'DEVICE_ERROR_SLEEP_SECONDS', 300) or 0)
+
+            from modules.device.schedule import jitter_sleep_seconds
+            # 抖动同样用在错误上：额度耗尽时成百上千台设备若同一秒重试，恢复瞬间就是尖峰
+            if status != 202:
+                sleep_seconds = jitter_sleep_seconds(sleep_seconds)
+
+            # 错误后应重试**同一个端点**（可能是配对、遥测，不一定是取图），
+            # 因此用当前路径而不是统一的 /device/image。
+            response.headers['X-Device-Sleep'] = str(int(sleep_seconds))
+            response.headers['X-Device-Next-Url'] = str(request.base_url).rstrip('/') + path
+            response.headers['X-Device-Now'] = utc_now_iso()
+            response.headers['X-Device-Epoch'] = now_epoch
+            if status in (202, 429, 503):
+                # Retry-After 给标准客户端看，X-Device-Sleep 给本固件看，两者同源
+                response.headers.setdefault('Retry-After', str(int(sleep_seconds)))
+            return response
 
     try:
         if os.path.isdir(public_dir):

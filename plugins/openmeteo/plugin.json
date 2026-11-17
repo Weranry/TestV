@@ -1,0 +1,11 @@
+{
+  "name": "openmeteo",
+  "version": "1.0.0",
+  "description": "Open-Meteo 免密钥天气：实况卡片与多日预报，图标使用 weather-icon.ttf",
+  "author": "",
+  "min_framework_version": "1.0.0",
+  "dependencies": {
+    "plugins": [],
+    "python": ["httpx"]
+  }
+}

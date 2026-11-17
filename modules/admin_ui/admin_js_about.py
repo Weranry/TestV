@@ -61,14 +61,56 @@ function aboutHtml(d){
     '<div class="about-actions" style="margin-top:16px">'+
     '<button class="btn" id="about-check"'+dis+' onclick="aboutCheckUpdate(this)">'+esc(T('about.check_update','检查更新'))+'</button>'+
     '<button class="btn btn-primary" id="about-apply"'+dis+' onclick="aboutApplyUpdate(this)">'+esc(T('about.update_restart','更新并重启'))+'</button>'+
+    '</div>'+
+    /* 原先独立成菜单项的「更新」分类并进这张卡：更新参数（UPDATE_*）与上面的更新模式/来源
+       本来就是同一件事，拆成两个入口反而要多点一次。表在 cfgTableHtml 里生成，
+       容器 id 以 cfg- 开头，编辑/还原走的仍是共享的 cfg-edit / cfg-reset 那条链 */
+    '<div class="about-sub">'+esc(T('about.update_params','更新参数'))+'</div>'+
+    '<div id="cfg-update">'+cfgTableHtml(_setKeysOf(_cfg||{},SET_UPDATE_CAT))+'</div>'+
     '</div></div></div>';
   h+='<div class="card"><div class="card-header"><div class="card-title"><h2>'+esc(T('about.actions_title','维护操作'))+
     '</h2></div></div><div class="card-body"><div class="about-actions">'+
     '<button class="btn btn-danger" onclick="aboutResetConfig(this)">'+esc(T('about.reset','恢复默认设置'))+'</button>'+
     '<button class="btn btn-danger" onclick="aboutRestart(this)">'+esc(T('about.restart','重启服务'))+'</button>'+
     '</div><p class="dim small about-note">'+esc(T('about.actions_note','更新与重启会短暂中断服务。'))+
-    '</p></div></div>';
+    '</p>'+
+    /* 高级模式：低调地挂在「维护操作」卡片底部一行——它是解除隐藏分类的开关，不该自己占一张卡 */
+    advRowHtml()+
+    '</div></div>';
   return h;
+}
+/* 高级模式低调行：未解锁 = 口令框 + 解锁；已解锁 = 「已解锁」+ 重新上锁。
+   被锁的项（设备高级项 / 口令）不单独成类：未解锁时在各自分类里隐藏，解锁后就在原位出现
+   （见 admin_js_config 的 ADV_HIDDEN_KEYS / _cfgKeyVisible） */
+function advRowHtml(){
+  var row='<div class="flex" style="gap:8px;align-items:center;margin-top:16px;border-top:1px solid var(--line);padding-top:16px">'+
+    '<span class="dim">'+esc(T('adv.title','高级模式'))+'</span>';
+  if(advUnlocked()){
+    return row+'<span class="dim small">'+esc(T('adv.status_on','已解锁'))+'</span>'+
+      '<button class="btn btn-sm btn-ghost" data-act="adv-lock" title="'+esc(T('adv.lock','重新上锁'))+'" aria-label="'+esc(T('adv.lock','重新上锁'))+'">'+esc(T('adv.lock','重新上锁'))+'</button></div>';
+  }
+  return row+'<input class="input mono" type="password" id="adv-key" autocomplete="off" style="flex:1;max-width:220px" placeholder="'+esc(T('adv.key_ph','输入口令'))+'" onkeydown="if(event.key===\'Enter\')unlockAdvanced(document.getElementById(\'adv-unlock\'))">'+
+    '<button class="btn btn-sm btn-ghost" id="adv-unlock" data-act="adv-unlock" title="'+esc(T('adv.unlock','解锁'))+'" aria-label="'+esc(T('adv.unlock','解锁'))+'">'+esc(T('adv.unlock','解锁'))+'</button></div>';
+}
+function unlockAdvanced(btn){
+  var inp=document.getElementById('adv-key');
+  var key=inp?String(inp.value||''):'';
+  if(!key){toast(T('adv.need_key','请输入口令'),'error');return}
+  btnBusy(btn,true);
+  R.post('/admin/api/advanced/unlock',{key:key}).then(function(d){
+    btnBusy(btn,false);
+    if(!d||d.success===false){toast((d&&d.message)||T('adv.wrong_key','口令不正确'),'error');return}
+    try{sessionStorage.setItem('ADV_UNLOCKED','1')}catch(e){}
+    toast(T('adv.unlocked','高级模式已解锁'),'success');
+    /* 解锁后：被锁的项立刻在各自分类的原位出现——重绘菜单，并把当前分类的表格重绘一遍 */
+    if(_cfg){renderSetMenu(_cfg);setSelect(_setCat||SET_ABOUT)}else{refreshConfig();loadAbout()}
+  }).catch(function(){btnBusy(btn,false);toast(T('msg.network_error','网络错误'),'error')});
+}
+function lockAdvanced(){
+  try{sessionStorage.removeItem('ADV_UNLOCKED')}catch(e){}
+  toast(T('adv.locked','已重新上锁'),'success');
+  /* 上锁后：被锁的项从各自分类里消失——重绘菜单与当前分类表格；分类本身都还在，不用跳走 */
+  if(_cfg){renderSetMenu(_cfg);setSelect(_setCat||SET_ABOUT)}else{refreshConfig();loadAbout()}
 }
 function loadAbout(){
   var box=document.getElementById('set-about');
@@ -76,6 +118,10 @@ function loadAbout(){
   if(!box.querySelector('.set-head'))box.innerHTML='<div class="set-head"><h2>'+esc(T('set.about','关于'))+'</h2></div><div class="empty">'+esc(T('msg.loading','加载中...'))+'</div>';
   R.get('/admin/api/runtime').then(function(d){
     box.innerHTML=aboutHtml(d||{});
+    /* 关于页里的「更新参数」表用 cfg-edit 那条链改值：把它的重载回调注册进来（重载=重绘本页），
+       并补一次 bindCfgInput——正是在这里渲染，焦点要落到刚展开的输入框上 */
+    _cfgReloadMap['cfg-update']=loadAbout;
+    bindCfgInput();
   }).catch(function(){
     box.innerHTML='<div class="set-head"><h2>'+esc(T('set.about','关于'))+'</h2></div><div class="empty">'+
       esc(T('msg.session_expired','请求失败或会话已失效，请重新登录'))+'</div>';

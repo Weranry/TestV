@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>课程表编辑器 - eInkViews</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f5f5f5;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 1.8em;
+            font-weight: normal;
+        }
+
+        .main-content {
+            padding: 20px;
+        }
+
+        .section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 1.2em;
+            color: #333;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 5px;
+            color: #666;
+            font-weight: normal;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+            background: #fff;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #2c3e50;
+        }
+
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            font-size: 14px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+
+        .btn-primary {
+            background: #2c3e50;
+            color: white;
+        }
+
+        .btn-success {
+            background: #27ae60;
+            color: white;
+        }
+
+        .btn-danger {
+            background: #e74c3c;
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #333;
+            border: 1px solid #ddd;
+        }
+
+        .course-card {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 20px;
+            margin-bottom: 15px;
+        }
+
+        .course-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        .course-title {
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .course-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+
+        .classroom-item {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin-bottom: 10px;
+            position: relative;
+        }
+
+        .classroom-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .remove-classroom {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: #e74c3c;
+            color: white;
+            border: none;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .week-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(35px, 1fr));
+            gap: 5px;
+            margin-top: 8px;
+        }
+
+        .week-checkbox {
+            display: none;
+        }
+
+        .week-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 6px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            background: white;
+        }
+
+        .week-checkbox:checked + .week-label {
+            background: #2c3e50;
+            color: white;
+            border-color: #2c3e50;
+        }
+
+        .day-select, .lesson-select {
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background: white;
+            font-size: 14px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 4px;
+            padding: 20px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .modal-title {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 20px;
+            cursor: pointer;
+            color: #999;
+            padding: 0;
+        }
+
+        .export-section {
+            background: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .json-preview {
+            background: #f8f8f8;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 15px 0;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+            text-align: left;
+        }
+
+        .quick-week-btns {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+
+        .quick-week-btn {
+            padding: 4px 8px;
+            border: 1px solid #ddd;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px 20px;
+            color: #999;
+        }
+
+        .section-hint {
+            color: #888;
+            font-size: 13px;
+            margin-bottom: 12px;
+        }
+
+        .slot-item {
+            display: grid;
+            grid-template-columns: 1.4fr 1fr 1fr auto;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+
+        .slot-index {
+            color: #888;
+            font-size: 13px;
+            grid-column: 1 / -1;
+        }
+
+        @media (max-width: 768px) {
+            .form-row {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>课程表编辑器</h1>
+        </div>
+        
+        <div class="main-content">
+            <div class="section">
+                <h2 class="section-title">学期设置</h2>
+                <div class="form-group">
+                    <label class="form-label">学期开始日期</label>
+                    <input type="date" id="semesterStartDate" class="form-input" value="2025-06-23">
+                </div>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">节次时间</h2>
+                <p class="section-hint">
+                    这里有多少条，当天就有多少节课。节次名可留空（会自动显示为「第N节」）；
+                    不填时间则屏幕上只显示节次名。
+                </p>
+                <div id="slotsList"></div>
+                <button class="btn btn-secondary" onclick="addSlot()">添加节次</button>
+            </div>
+
+            <div class="section">
+                <h2 class="section-title">课程管理</h2>
+                <div style="margin-bottom: 20px;">
+                    <button class="btn btn-primary" onclick="showAddCourseModal()">添加课程</button>
+                    <button class="btn btn-secondary" onclick="importJSON()" style="margin-left: 10px;">导入JSON</button>
+                </div>
+                <div id="coursesList"></div>
+            </div>
+
+            <div class="section">
+                <div class="export-section">
+                    <h2 class="section-title">导出课程表</h2>
+                    <p style="margin-bottom: 15px; color: #666;">
+                        生成JSON文件后，放置于插件目录的 <code>assets/course/</code> 文件夹中。
+                    </p>
+                    <button class="btn btn-success" onclick="exportJSON()">下载JSON</button>
+                    <button class="btn btn-primary" onclick="previewJSON()" style="margin-left: 10px;">预览JSON</button>
+                    <div id="jsonPreview" class="json-preview" style="display: none;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div id="courseModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title" id="modalTitle">添加课程</h3>
+                <button class="close-btn" onclick="hideCourseModal()">&times;</button>
+            </div>
+            <form id="courseForm">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">课程名称</label>
+                        <input type="text" id="courseName" class="form-input" required>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">任课教师</label>
+                        <input type="text" id="teacher" class="form-input" required>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">上课时间安排</label>
+                    <div id="classroomsList"></div>
+                    <button type="button" class="btn btn-secondary" onclick="addClassroom()">添加上课时间</button>
+                </div>
+                
+                <div style="text-align: right; margin-top: 30px;">
+                    <button type="button" class="btn btn-secondary" onclick="hideCourseModal()" style="margin-right: 10px;">取消</button>
+                    <button type="submit" class="btn btn-primary">保存课程</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <input type="file" id="fileInput" accept=".json" style="display: none;" onchange="handleFileImport(event)">
+
+    <script>
+        let courses = [];
+        let editingIndex = -1;
+        let slots = [
+            { label: 'M1', start: '08:00', end: '08:45' },
+            { label: 'M2', start: '08:55', end: '09:40' },
+            { label: 'A1', start: '14:00', end: '14:45' },
+            { label: 'A2', start: '14:55', end: '15:40' },
+            { label: 'EV', start: '19:00', end: '19:45' }
+        ];
+
+        function renderSlots() {
+            document.getElementById('slotsList').innerHTML = slots.map((slot, i) => `
+                <div class="slot-item">
+                    <input class="form-input slot-label" placeholder="节次名，如 M1" value="${slot.label || ''}">
+                    <input class="form-input slot-start" type="time" value="${slot.start || ''}">
+                    <input class="form-input slot-end" type="time" value="${slot.end || ''}">
+                    <button class="btn btn-danger" onclick="removeSlot(${i})">删除</button>
+                </div>
+            `).join('');
+        }
+
+        function collectSlots() {
+            return Array.from(document.querySelectorAll('.slot-item')).map((item, i) => ({
+                label: item.querySelector('.slot-label').value.trim() || `第${i + 1}节`,
+                start: item.querySelector('.slot-start').value,
+                end: item.querySelector('.slot-end').value
+            }));
+        }
+
+        function addSlot() {
+            const current = collectSlots();
+            const last = current[current.length - 1] || {};
+            slots = current.concat([{ label: `第${current.length + 1}节`, start: last.end || '', end: '' }]);
+            renderSlots();
+            syncLessonOptions();
+        }
+
+        function removeSlot(index) {
+            const current = collectSlots();
+            if (current.length <= 1) {
+                alert('至少保留一个节次');
+                return;
+            }
+            current.splice(index, 1);
+            slots = current;
+            renderSlots();
+            syncLessonOptions();
+        }
+
+        function lessonOptions() {
+            const count = collectSlots().length || slots.length;
+            return Array.from({length: count}, (_, i) =>
+                `<option value="${i + 1}">第${i + 1}节</option>`).join('');
+        }
+
+        function syncLessonOptions() {
+            document.querySelectorAll('.lesson-select').forEach(select => {
+                const current = select.value;
+                select.innerHTML = lessonOptions();
+                if (current && select.querySelector(`option[value="${current}"]`)) {
+                    select.value = current;
+                }
+            });
+        }
+
+        function showAddCourseModal() {
+            editingIndex = -1;
+            document.getElementById('modalTitle').textContent = '添加课程';
+            document.getElementById('courseForm').reset();
+            document.getElementById('classroomsList').innerHTML = '';
+            addClassroom();
+            document.getElementById('courseModal').classList.add('active');
+        }
+
+        function hideCourseModal() {
+            document.getElementById('courseModal').classList.remove('active');
+        }
+
+        function editCourse(index) {
+            editingIndex = index;
+            const course = courses[index];
+            document.getElementById('modalTitle').textContent = '编辑课程';
+            document.getElementById('courseName').value = course.courseName;
+            document.getElementById('teacher').value = course.teacher;
+            const classroomsList = document.getElementById('classroomsList');
+            classroomsList.innerHTML = '';
+            course.classroom.forEach(c => addClassroom(c));
+            document.getElementById('courseModal').classList.add('active');
+        }
+
+        function deleteCourse(index) {
+            if (confirm('确定删除？')) {
+                courses.splice(index, 1);
+                renderCoursesList();
+            }
+        }
+
+        function addClassroom(data = null) {
+            const list = document.getElementById('classroomsList');
+            const idx = list.children.length;
+            const div = document.createElement('div');
+            div.className = 'classroom-item';
+            div.innerHTML = `
+                <button type="button" class="remove-classroom" onclick="this.parentElement.remove()">&times;</button>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">星期</label>
+                        <select class="day-select form-input" name="dayOfWeek">
+                            <option value="1">周一</option><option value="2">周二</option>
+                            <option value="3">周三</option><option value="4">周四</option>
+                            <option value="5">周五</option><option value="6">周六</option>
+                            <option value="7">周日</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">节次</label>
+                        <select class="lesson-select form-input" name="lesson">
+                            ${lessonOptions()}
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">教室</label>
+                    <input type="text" name="room" class="form-input" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">周数</label>
+                    <div class="quick-week-btns">
+                        <button type="button" class="quick-week-btn" onclick="setWeeks(this, 1, 16)">1-16</button>
+                        <button type="button" class="quick-week-btn" onclick="setWeeks(this, 'odd')">单周</button>
+                        <button type="button" class="quick-week-btn" onclick="setWeeks(this, 'even')">双周</button>
+                    </div>
+                    <div class="week-selector">
+                        ${Array.from({length: 20}, (_, i) => `
+                            <input type="checkbox" id="w_${idx}_${i+1}" name="week" value="${i+1}" class="week-checkbox">
+                            <label for="w_${idx}_${i+1}" class="week-label">${i+1}</label>
+                        `).join('')}
+                    </div>
+                </div>
+            `;
+            list.appendChild(div);
+            if (data) {
+                div.querySelector('[name="dayOfWeek"]').value = data.dayOfWeek;
+                div.querySelector('[name="lesson"]').value = data.lesson;
+                div.querySelector('[name="room"]').value = data.room;
+                data.week.forEach(w => {
+                    const cb = div.querySelector(`input[value="${w}"]`);
+                    if (cb) cb.checked = true;
+                });
+            }
+        }
+
+        function setWeeks(btn, type, end) {
+            const p = btn.closest('.classroom-item');
+            const cbs = p.querySelectorAll('[name="week"]');
+            cbs.forEach(cb => {
+                const w = parseInt(cb.value);
+                if (type === 'odd') cb.checked = (w % 2 !== 0);
+                else if (type === 'even') cb.checked = (w % 2 === 0);
+                else cb.checked = (w >= type && w <= end);
+            });
+        }
+
+        document.getElementById('courseForm').onsubmit = (e) => {
+            e.preventDefault();
+            const cls = [];
+            document.querySelectorAll('.classroom-item').forEach(item => {
+                cls.push({
+                    dayOfWeek: parseInt(item.querySelector('[name="dayOfWeek"]').value),
+                    lesson: parseInt(item.querySelector('[name="lesson"]').value),
+                    room: item.querySelector('[name="room"]').value,
+                    week: Array.from(item.querySelectorAll('[name="week"]:checked')).map(c => parseInt(c.value))
+                });
+            });
+            const c = {
+                courseName: document.getElementById('courseName').value,
+                teacher: document.getElementById('teacher').value,
+                classroom: cls
+            };
+            if (editingIndex >= 0) courses[editingIndex] = c;
+            else courses.push(c);
+            hideCourseModal();
+            renderCoursesList();
+        };
+
+        function renderCoursesList() {
+            const list = document.getElementById('coursesList');
+            if (courses.length === 0) {
+                list.innerHTML = '<div class="empty-state">暂无课程</div>';
+                return;
+            }
+            list.innerHTML = courses.map((c, i) => `
+                <div class="course-card">
+                    <div class="course-header">
+                        <span class="course-title">${c.courseName} (${c.teacher})</span>
+                        <div class="course-actions">
+                            <button class="btn btn-secondary" onclick="editCourse(${i})">编辑</button>
+                            <button class="btn btn-danger" onclick="deleteCourse(${i})">删除</button>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function buildSchedule() {
+            return {
+                semesterStartDate: document.getElementById('semesterStartDate').value,
+                timeSlots: collectSlots(),
+                courses
+            };
+        }
+
+        function exportJSON() {
+            const data = buildSchedule();
+            const blob = new Blob([JSON.stringify(data, null, 2)], {type: 'application/json'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = 'course_schedule.json';
+            a.click();
+        }
+
+        function previewJSON() {
+            const pre = document.getElementById('jsonPreview');
+            pre.textContent = JSON.stringify(buildSchedule(), null, 2);
+            pre.style.display = 'block';
+        }
+
+        function importJSON() { document.getElementById('fileInput').click(); }
+        
+        function handleFileImport(e) {
+            const reader = new FileReader();
+            reader.onload = (ev) => {
+                const data = JSON.parse(ev.target.result);
+                document.getElementById('semesterStartDate').value = data.semesterStartDate;
+                if (Array.isArray(data.timeSlots) && data.timeSlots.length) {
+                    slots = data.timeSlots.map((slot, i) => ({
+                        label: slot.label || `第${i + 1}节`,
+                        start: slot.start || '',
+                        end: slot.end || ''
+                    }));
+                    renderSlots();
+                }
+                courses = data.courses;
+                renderCoursesList();
+            };
+            reader.readAsText(e.target.files[0]);
+        }
+
+        renderSlots();
+    </script>
+</body>
+</html>
