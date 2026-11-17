@@ -1,0 +1,14 @@
+{
+  "name": "wikipedia",
+  "version": "1.0.0",
+  "description": "中文维基百科首页摘要：正在发生/最近逝世、新闻动态、你知道吗与典范条目",
+  "author": "eInkViews",
+  "min_framework_version": "1.0.0",
+  "dependencies": {
+    "plugins": [],
+    "python": [
+      "beautifulsoup4",
+      "httpx"
+    ]
+  }
+}

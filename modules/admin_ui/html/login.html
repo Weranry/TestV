@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="{{LANG}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>eInkViews</title>
+<style>
+{{SHARED_UI_CSS}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--bg);display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;color:var(--fg)}
+.login-card{background:var(--ds-background-100);border-radius:var(--r-md);padding:40px 32px;width:360px;max-width:100%;box-shadow:var(--sh-2)}
+.login-card h1{font-size:24px;font-weight:600;letter-spacing:-.6px;margin-bottom:24px}
+input,button{font-family:inherit;font-size:inherit}
+.input{width:100%;height:40px;padding:0 16px;border:none;border-radius:var(--r-sm);font-size:14px;outline:none;transition:box-shadow var(--motion-fast);margin-bottom:16px;box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);background:var(--ds-background-100);color:var(--fg)}
+.input:hover{box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-600)}
+.input:focus{box-shadow:inset 0 0 0 1px var(--ds-focus-color),var(--ds-focus-ring)}
+.btn{display:block;width:100%;height:40px;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:500;cursor:pointer;transition:all var(--motion-fast)}
+.btn-primary{background:var(--ds-gray-1000);color:var(--ds-background-100)}
+.btn-primary:hover{background:var(--ds-gray-900)}
+.link{font-size:12px;margin-top:16px;color:var(--fg2);text-align:center}
+.link a{color:var(--fg);text-decoration:underline;text-underline-offset:2px;text-decoration-color:var(--fg3)}
+.link a:hover{text-decoration-color:var(--fg)}
+.link .link-sep{margin:0 8px;color:var(--faint)}
+</style>
+{{THEME_INIT}}
+</head>
+<body>
+<div class="login-card">
+  <h1>eInkViews</h1>
+  <input class="input" type="text" id="username-input" placeholder="{{T:auth.username}}" autocomplete="off">
+  <div class="pw pw-block"><input class="input" type="password" id="password-input" placeholder="{{T:auth.password}}" autocomplete="current-password"><button type="button" class="pw-eye" data-act="pw-toggle" aria-pressed="false"></button></div>
+  <button class="btn btn-primary" id="submit-btn" data-act="login">{{T:login.submit}}</button>
+  <div class="link">
+    <!-- register-link:start -->
+    <a href="/register">{{T:login.register}}</a><span class="link-sep">·</span>
+    <!-- register-link:end -->
+    <a href="/reset-password">{{T:login.forgot}}</a>
+  </div>
+</div>
+<script type="application/json" id="i18n-data">{{I18N}}</script>
+<script>{{SHARED_UI_JS}}</script>
+<script>
+async function doLogin(btn){
+  var u=document.getElementById('username-input').value.trim(),p=document.getElementById('password-input').value.trim();
+  if(!u){toast(T('login.need_username','请输入用户名'),'error');document.getElementById('username-input').focus();return}
+  if(!p){toast(T('login.need_password','请输入密码'),'error');document.getElementById('password-input').focus();return}
+  btnBusy(btn,true,T('login.busy','登录中…'));
+  try{
+    var r=await fetch('/admin/api/auth/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,password:p})});
+    var d=await r.json();
+    if(r.ok){toast(T('login.success','登录成功，正在跳转…'),'success');setTimeout(function(){window.location.href='/admin'},500)}
+    else{btnBusy(btn,false);toast(d.message||T('login.failed','登录失败'),'error')}
+  }catch(e){btnBusy(btn,false);toast(T('msg.network_error','网络错误'),'error')}
+}
+document.addEventListener('click',function(e){
+  var el=e.target.closest('[data-act="login"]');
+  if(el)doLogin(el);
+});
+document.getElementById('password-input').addEventListener('keydown',function(e){if(e.key==='Enter')doLogin(document.getElementById('submit-btn'))});
+</script>
+</body>
+</html>

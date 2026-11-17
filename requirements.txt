@@ -1,0 +1,5 @@
+httpx==0.28.1
+Pillow==12.1.1
+beautifulsoup4==4.14.3
+qrcode==8.2
+lunar-python==1.4.8

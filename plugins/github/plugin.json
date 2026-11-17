@@ -1,0 +1,11 @@
+{
+  "name": "github",
+  "version": "1.0.0",
+  "description": "GitHub 用户状态与贡献图展示",
+  "author": "eInkViews",
+  "min_framework_version": "1.0.0",
+  "dependencies": {
+    "plugins": [],
+    "python": []
+  }
+}
