@@ -162,6 +162,27 @@ def _derive_device_format_migration(version):
     return (version, 'devices.format 由 palette 推导回填', check, apply)
 
 
+def _max_devices_unlimited_migration(version):
+    """设备上限默认值变更：由「1 台」改为「不限」（-1）。
+
+    旧库里 `user_groups.max_devices` 都是建表 / 加列时落下的默认值 1（此前面板没有这一项，
+    管理员无从改），这里一次性回填为 -1。全新库的组在迁移之后才插入，迁移在先影响不到它们。
+    幂等且只跑一次：一旦没有组停留在 1 即成立；版本记录后不再重跑（此后管理员把某组改回 1
+    是正常配置，不该被再次改写）。
+    """
+
+    def check(conn):
+        if not _table_exists(conn, 'user_groups'):
+            return True
+        row = conn.execute('SELECT COUNT(*) FROM user_groups WHERE max_devices = 1').fetchone()
+        return not row or row[0] == 0
+
+    def apply(conn):
+        conn.execute('UPDATE user_groups SET max_devices = -1 WHERE max_devices = 1')
+
+    return (version, 'user_groups.max_devices 默认改为不限', check, apply)
+
+
 # 版本号必须递增，且**只追加不修改**（已发布的版本号一旦改动，老库会重复执行或漏执行）。
 # 加列迁移按依赖顺序排列：数据迁移必须排在被它引用的列之后。
 MIGRATIONS = [
@@ -260,6 +281,122 @@ MIGRATIONS = [
                'CREATE INDEX IF NOT EXISTS idx_device_shares_account ON device_shares(account_id, device_id)'),
     # 设备输出格式改由 palette 推导（设备只上报支持颜色），回填存量行。
     _derive_device_format_migration(31),
+    # 设备签入审批表：关闭「自动加入」后，网页认领落一条待审批记录（建表语句形状见 core.py）。
+    # 新库的建表语句已带此表，此处只回填版本记录。
+    _add_table(32, 'device_signins 建表', 'device_signins', '''CREATE TABLE IF NOT EXISTS device_signins (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id INTEGER NOT NULL,
+        hw_uid TEXT NOT NULL,
+        pair_id TEXT NOT NULL DEFAULT '',
+        payload_json TEXT NOT NULL DEFAULT '{}',
+        status TEXT NOT NULL DEFAULT 'pending',
+        note TEXT NOT NULL DEFAULT '',
+        admin_name TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE)'''),
+    _add_index(33, 'device_signins 状态索引', 'device_signins', 'idx_device_signins_status',
+               'CREATE INDEX IF NOT EXISTS idx_device_signins_status ON device_signins(status, id)'),
+    # 设备上限语义变更：默认由「1 台」改为「不限」，回填存量组。
+    _max_devices_unlimited_migration(34),
+    # 用户端通知表：老库在这里真正建表，新库因建表语句已带此表而只回填版本记录。
+    _add_table(35, 'notifications 建表', 'notifications', '''CREATE TABLE IF NOT EXISTS notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id INTEGER NOT NULL,
+        kind TEXT NOT NULL DEFAULT '',
+        title TEXT NOT NULL DEFAULT '',
+        body TEXT NOT NULL DEFAULT '',
+        payload_json TEXT NOT NULL DEFAULT '{}',
+        read_at TEXT,
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE)'''),
+    _add_index(36, 'notifications 账号索引', 'notifications', 'idx_notifications_account',
+               'CREATE INDEX IF NOT EXISTS idx_notifications_account ON notifications(account_id, id)'),
+    # 一次性临时密码的到期时间（UTC，'YYYY-MM-DD HH:MM:SS'）。空串 = 当前口令不是临时密码。
+    # 管理员批准找回申请时写入，用户改密（set_account_password）时清空。
+    _add_column(37, 'accounts.temp_password_expires', 'accounts', 'temp_password_expires',
+                "ALTER TABLE accounts ADD COLUMN temp_password_expires TEXT NOT NULL DEFAULT ''"),
+    # 找回密码申请单：老库在这里真正建表，新库因建表语句已带此表而只回填版本记录。
+    _add_table(38, 'password_reset_requests 建表', 'password_reset_requests',
+               '''CREATE TABLE IF NOT EXISTS password_reset_requests (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        account_id INTEGER NOT NULL,
+        status TEXT NOT NULL DEFAULT 'pending',
+        handled_by TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        handled_at TEXT NOT NULL DEFAULT '',
+        FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE)'''),
+    _add_index(39, 'password_reset_requests 状态索引', 'password_reset_requests',
+               'idx_password_reset_requests_status',
+               'CREATE INDEX IF NOT EXISTS idx_password_reset_requests_status '
+               'ON password_reset_requests(status, id)'),
+    # 多视图轮播：设备按渲染项顺序轮换，游标记在设备档案上（`/device/image` 每次成功后 +1）。
+    _add_column(40, 'devices.carousel_index', 'devices', 'carousel_index',
+                'ALTER TABLE devices ADD COLUMN carousel_index INTEGER NOT NULL DEFAULT 0'),
+    # 最近一次遥测快照（历史在 device_telemetry 表里）：电量 mV / 信号 dBm / 唤醒耗时 ms /
+    # 累计刷新次数。0 表示设备还没上报过，不等于真实值。
+    _add_column(41, 'devices.battery_mv', 'devices', 'battery_mv',
+                'ALTER TABLE devices ADD COLUMN battery_mv INTEGER NOT NULL DEFAULT 0'),
+    _add_column(42, 'devices.rssi', 'devices', 'rssi',
+                'ALTER TABLE devices ADD COLUMN rssi INTEGER NOT NULL DEFAULT 0'),
+    _add_column(43, 'devices.wake_ms', 'devices', 'wake_ms',
+                'ALTER TABLE devices ADD COLUMN wake_ms INTEGER NOT NULL DEFAULT 0'),
+    _add_column(44, 'devices.refresh_count', 'devices', 'refresh_count',
+                'ALTER TABLE devices ADD COLUMN refresh_count INTEGER NOT NULL DEFAULT 0'),
+    # 离线告警去重标记：1 = 本轮离线已经发过告警，设备回连（touch_device）时清零。
+    _add_column(45, 'devices.offline_alerted', 'devices', 'offline_alerted',
+                'ALTER TABLE devices ADD COLUMN offline_alerted INTEGER NOT NULL DEFAULT 0'),
+    # 遥测历史表：老库在这里真正建表，新库因建表语句已带此表而只回填版本记录。
+    _add_table(46, 'device_telemetry 建表', 'device_telemetry', '''CREATE TABLE IF NOT EXISTS device_telemetry (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        device_id INTEGER NOT NULL,
+        battery_mv INTEGER NOT NULL DEFAULT 0,
+        rssi INTEGER NOT NULL DEFAULT 0,
+        wake_ms INTEGER NOT NULL DEFAULT 0,
+        refresh_count INTEGER NOT NULL DEFAULT 0,
+        firmware TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT (datetime('now')),
+        FOREIGN KEY (device_id) REFERENCES devices(id) ON DELETE CASCADE)'''),
+    _add_index(47, 'device_telemetry 设备索引', 'device_telemetry', 'idx_device_telemetry_device',
+               'CREATE INDEX IF NOT EXISTS idx_device_telemetry_device '
+               'ON device_telemetry(device_id, id)'),
+    # 用户主动降级：设备上报的 palette 保持原样，输出位流按此项（留空则按上报值）推导。
+    # 设备重新注册只刷新 palette，不会覆盖这里的选择。
+    _add_column(48, 'devices.palette_override', 'devices', 'palette_override',
+                "ALTER TABLE devices ADD COLUMN palette_override TEXT NOT NULL DEFAULT ''"),
+    # 轮播切换方式：'sequence' = 按渲染项顺序轮换，'random' = 每次刷新随机挑一项。
+    # 单图（只启用一条渲染项）不依赖这一列，保存时统一写回 sequence。
+    _add_column(49, 'devices.carousel_mode', 'devices', 'carousel_mode',
+                "ALTER TABLE devices ADD COLUMN carousel_mode TEXT NOT NULL DEFAULT 'sequence'"),
+    # 请求来源：device（设备令牌取图/上报）、evkey（内容接口凭 EVKEY）、session（控制台
+    # 登录态）、dev（开发模式放行）。日志页靠它区分「设备来的」和「EVKEY 来的」，
+    # 而不再只能从 plugin_name='device' 反推。
+    _add_column(50, 'request_logs.source', 'request_logs', 'source',
+                "ALTER TABLE request_logs ADD COLUMN source TEXT NOT NULL DEFAULT ''"),
+    # 真实内容路由：设备取图走 /device/image，但实际渲染的是渲染项里的 /插件/视图/尺寸。
+    # 日志页显示这一列，才能看出设备请求的到底是哪个插件的哪条路由。
+    _add_column(51, 'request_logs.route', 'request_logs', 'route',
+                "ALTER TABLE request_logs ADD COLUMN route TEXT NOT NULL DEFAULT ''"),
+    # 设备最近一张成功图片：渲染失败时回退它，避免屏幕空白；ETag 也存这里，
+    # 设备下次带 If-None-Match 就能直接 304。文件本身落在数据库同级的 device_last/ 下。
+    _add_column(52, 'devices.last_image_path', 'devices', 'last_image_path',
+                "ALTER TABLE devices ADD COLUMN last_image_path TEXT NOT NULL DEFAULT ''"),
+    _add_column(53, 'devices.last_image_etag', 'devices', 'last_image_etag',
+                "ALTER TABLE devices ADD COLUMN last_image_etag TEXT NOT NULL DEFAULT ''"),
+    _add_column(54, 'devices.last_image_mime', 'devices', 'last_image_mime',
+                "ALTER TABLE devices ADD COLUMN last_image_mime TEXT NOT NULL DEFAULT ''"),
+    _add_column(55, 'devices.last_image_name', 'devices', 'last_image_name',
+                "ALTER TABLE devices ADD COLUMN last_image_name TEXT NOT NULL DEFAULT ''"),
+    # 配对会话的幂等键：同一个 Idempotency-Key 重试 /pair/request 时返回同一组配对码。
+    _add_column(56, 'device_pairings.idempotency_key', 'device_pairings', 'idempotency_key',
+                "ALTER TABLE device_pairings ADD COLUMN idempotency_key TEXT NOT NULL DEFAULT ''"),
+    _add_index(57, 'device_pairings 幂等键索引', 'device_pairings', 'idx_pair_idem',
+               'CREATE INDEX IF NOT EXISTS idx_pair_idem ON device_pairings(idempotency_key)'),
+    # 非敏感响应的幂等缓存（register / pair-request）。新库建表语句已带此表。
+    _add_table(58, 'device_idempotency 建表', 'device_idempotency', '''CREATE TABLE IF NOT EXISTS device_idempotency (
+        idem_key TEXT PRIMARY KEY,
+        scope TEXT NOT NULL DEFAULT '',
+        response_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL)'''),
 ]
 
 LATEST_VERSION = max(item[0] for item in MIGRATIONS)

@@ -3,31 +3,54 @@ from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
 from starlette.exceptions import HTTPException
 
+from modules.i18n.registry import t, t_req
 from modules.utils import plog
 
 
-class NotFoundError(Exception):
+class ApiError(Exception):
+    """接口异常的基类：消息可以写成取词键，也可以直接写成成品文案。
+
+    写成取词键时额外传具名参数 —— `AccessDeniedError('device.err_pair_bad')`、
+    `AccessDeniedError('device.err_plugin_off', plugin=name)` —— 由异常处理器按请求
+    语言取词；而 `t()` 缺键会回落成键名本身，所以「直接写中文」的历史调用点不必挨个
+    去补键，两种写法能共存。
+
+    语言归请求侧管：后台线程与定时任务里抛出的异常本来就没有语言可言，处理器拿到什么
+    就用什么，不必也不该在这里塞语言参数。
+    """
+
+    def __init__(self, message='', **fmt):
+        # 首个形参不能叫 key：业务占位参数里本来就有 `key=`（如 api.err_group_param），
+        # 同名会让 `ParamError('api.err_group_param', key=...)` 直接 TypeError
+        super().__init__(message)
+        self.key = message
+        self.fmt = fmt
+
+
+class NotFoundError(ApiError):
     pass
 
 
-class AuthError(Exception):
+class AuthError(ApiError):
     pass
 
 
-class AccessDeniedError(Exception):
+class AccessDeniedError(ApiError):
     pass
 
 
-class ParamError(Exception):
+class ParamError(ApiError):
     pass
 
 
-class RenderError(Exception):
+class RenderError(ApiError):
     """视图渲染失败：插件抛异常、上游取数失败、编码失败等。
 
     与 `ParamError` 的分界在责任方——参数写错是调用方的问题（400，属正常流量），
     渲染失败是服务端自己的问题。日志与统计里只有 5xx（含本类）才算「错误」，
     因此这里必须是 500，不能沿用历史上「兜底包成 ParamError」的写法。
+
+    消息照常回给调用方（`render_error_handler`），所以同样按取词键走。
     """
 
 
@@ -51,28 +74,37 @@ def error_response(message, status_code, code=None, headers=None, extra=None):
     return JSONResponse(status_code=status_code, content=content, headers=headers)
 
 
+def _message(request, exc):
+    """异常消息取词：命中取词键就按请求语言翻，没命中（历史调用点直接写的中文）原样返回。
+
+    `ApiError.key` 既可能是键也可能是成品文案，两种写法靠 `t()` 的「缺键回落」兜住。
+    """
+    return t_req(request, exc.key, **exc.fmt)
+
+
 async def not_found_error_handler(request: Request, exc: NotFoundError):
-    return error_response(exc, 404)
+    return error_response(_message(request, exc), 404)
 
 
 async def param_error_handler(request: Request, exc: ParamError):
-    plog.exception(f'参数错误: {exc}')
-    return error_response(exc, 400)
+    # 日志一律记中文原文：键名在日志里看不出人话，而日志按项目规则不跟请求语言走
+    plog.exception(f'参数错误: {t(exc.key, "zh-CN")}')
+    return error_response(_message(request, exc), 400)
 
 
 async def render_error_handler(request: Request, exc: RenderError):
     # 消息照常回给调用方：渲染失败的原因（上游超时 / 密钥失效）对排障是有效信息，
     # 而这条路径本身已在鉴权之后，不构成对未授权访客的信息泄露
-    plog.exception(f'图片渲染失败: {exc}')
-    return error_response(exc, 500)
+    plog.exception(f'图片渲染失败: {t(exc.key, "zh-CN")}')
+    return error_response(_message(request, exc), 500)
 
 
 async def auth_error_handler(request: Request, exc: AuthError):
-    return error_response(exc, 401)
+    return error_response(_message(request, exc), 401)
 
 
 async def access_denied_error_handler(request: Request, exc: AccessDeniedError):
-    return error_response(exc, 403)
+    return error_response(_message(request, exc), 403)
 
 
 async def http_exception_handler(request: Request, exc: HTTPException):
@@ -80,7 +112,7 @@ async def http_exception_handler(request: Request, exc: HTTPException):
 
 
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    return error_response('请求参数校验失败', 422)
+    return error_response(t_req(request, 'core.param_invalid'), 422)
 
 
 async def general_exception_handler(request: Request, exc: Exception):
@@ -90,7 +122,7 @@ async def general_exception_handler(request: Request, exc: Exception):
         # 开发模式暴露异常类型与消息便于调试；request_id 只在 dev 附带，生产不外泄内部标识
         return error_response(f'{type(exc).__name__}: {exc}', 500,
                               extra={'request_id': rid} if rid else None)
-    return error_response('服务器内部错误', 500)
+    return error_response(t_req(request, 'api.err_internal'), 500)
 
 
 def register_error_handlers(app):

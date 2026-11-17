@@ -1,0 +1,182 @@
+
+/* ============ 共享 UI：浮层通知 / 弹窗 / 按钮态 ============ */
+/* 滚动条统一隐藏：滚动本身照常可用（滚轮 / 触控板 / 键盘 / 触摸都不受影响），只是不画那根条。
+   面板里存在多处内部滚动区（侧栏、弹窗、卡片背面），滚动条时有时无会让内容区宽度来回跳，
+   同一次会话里也会出现两种粗细的条，故收口到这一处、所有页面口径一致。 */
+*{scrollbar-width:none;-ms-overflow-style:none}
+*::-webkit-scrollbar{width:0;height:0;display:none}
+.toasts{position:fixed;top:16px;right:16px;z-index:500;display:flex;flex-direction:column;gap:8px;width:340px;max-width:calc(100vw - 32px);pointer-events:none}
+.toast{display:flex;align-items:flex-start;gap:8px;padding:16px;border-radius:12px;background:var(--ds-background-100);color:var(--fg,#171717);font-size:14px;line-height:1.5;box-shadow:var(--sh-2,0 0 0 1px rgba(0,0,0,.08),0 4px 8px rgba(0,0,0,.06));pointer-events:auto;animation:toastIn .22s cubic-bezier(.2,.8,.3,1)}
+.toast.out{animation:toastOut .16s ease forwards}
+@keyframes toastIn{from{opacity:0;transform:translateX(14px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes toastOut{to{opacity:0;transform:translateX(14px) scale(.98)}}
+.toast .ic{width:18px;height:18px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600;color:#fff;margin-top:1px}
+/* success 走 link 蓝、info 走中性灰：两者都取蓝的话「成功」与「提示」在视觉上分不开 */
+.toast.success .ic{background:var(--blue,#0070f3)}
+.toast.error .ic{background:var(--red,#ee0000)}
+.toast.info .ic{background:var(--fg3,#8f8f8f)}
+.toast.warn .ic{background:var(--orange-deep,#ab570a)}
+.toast .tx{flex:1;min-width:0;word-break:break-word}
+.toast .tx b{display:block;font-weight:600;margin-bottom:4px}
+.toast .x{cursor:pointer;color:var(--fg3,#8f8f8f);font-size:15px;line-height:1;padding:0 4px;flex-shrink:0}
+.toast .x:hover{color:var(--fg,#171717)}
+/* 遮罩层：变暗底色 + 8px 高斯模糊。模糊统一挂在这一处——所有弹窗（内容弹窗、确认框、
+   告知框）都走同一个 .modal-overlay，改一次即全站生效。变暗与模糊叠加：浅色下压暗页面、
+   深色下页面本来就黑，模糊把背后的内容虚化开，弹窗自然成为唯一焦点 */
+.modal-overlay{position:fixed;inset:0;background:var(--scrim,rgba(23,23,23,.45));-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);z-index:400;display:flex;align-items:center;justify-content:center;padding:24px;overscroll-behavior:contain}
+/* 弹窗打开期间锁住背后的页面：遮罩是 fixed 层，弹窗内容滚到边界后滚动链会传给
+   document，表现为「弹窗不滚、背景在滚」。模态框在 body 下的增删由 shared.ui.js
+   ／MutationObserver 统一维护，覆盖 X / 遮罩 / Esc / 各页直接 remove 所有关闭路径 */
+body.modal-open{overflow:hidden}
+/* 全项目的内容型弹窗统一一档尺寸：固定宽 960px、固定高 640px，窄 / 矮视口靠 min() 自动
+   收缩、不溢出。高度必须是 height（不是 min-height）：账号详情在 EVkeys / 额度 / 用量 /
+   设备 之间切换、各列表数据量不同，弹窗尺寸都要纹丝不动，内容超出就落在弹窗内滚动，
+   绝不随内容多寡「蹦跳」。确认 / 告知框是刻意紧凑的另一档，见下方 .modal.confirm */
+.modal{display:grid;grid-template-rows:auto minmax(0,1fr) auto;background:var(--ds-background-100);border-radius:var(--r-lg,16px);padding:32px;width:min(960px,100%);height:min(640px,86vh);overflow:hidden;box-shadow:var(--sh-2,0 0 0 1px rgba(0,0,0,.08),0 4px 8px rgba(0,0,0,.06));animation:modalIn .18s ease}
+@keyframes modalIn{from{opacity:0;transform:scale(.97)}to{opacity:1;transform:scale(1)}}
+/* 容器只为「把焦点接进弹窗」而可聚焦（tabindex=-1），不该画出焦点框 */
+.modal:focus{outline:none}
+/* 头部：标题 + 右上角 X，不参与滚动。X 因此永远钉在右上角，正文只在下方的
+   .modal-body 里滚，滚动的字永远不会钻到 X 底下（不叠加、不遮挡） */
+.modal-head{flex-shrink:0;display:flex;flex-wrap:wrap;align-items:flex-start;gap:16px;margin-bottom:16px}
+/* 确认框头部：图标在标题左侧、与标题同一行，且中心对齐同一条中线（align-items:center）。
+   头部里的 h3 必须显式 margin:0——`.modal.confirm h3` 的 8px 下边距优先级更高，
+   而 flex 居中连外边距一起算，会把图标顶得比标题中心高一截。
+   X 靠 margin-left:auto 依旧钉在右上角。
+   图标是定死的正方形圆，flex-shrink:0 保证标题再长也不压扁它；
+   别给它 flex-basis/width:100% 之类「撑行」写法——那会覆盖它自己的 width，
+   把圆拉成整行宽的椭圆（之前感叹号被拉长的元凶） */
+.modal.confirm .modal-head{align-items:center}
+.modal.confirm .modal-head h3{margin:0}
+.modal-head .confirm-ic{flex-shrink:0;margin-bottom:0}
+/* 正文：整个弹窗唯一可滚动的地方，内容不足时撑满剩余高度。
+   overflow-y:auto 会让 overflow-x 一并算成 auto（规范：一轴非 visible、另一轴 visible
+   时后者取 auto），于是滚动框会把输入框的 focus 外发光在左右两侧贴边裁掉。
+   这里留 4px（发光外圈宽度）内边距、再用等量负外边距抵消回去：内容位置分毫不动，
+   外圈有地方画，不再被挡 */
+.modal-body{min-height:0;overflow-y:auto;overscroll-behavior:contain;display:grid;grid-template-columns:minmax(0,1fr);align-content:start;margin:-4px;padding:4px}
+/* 正文首行就是副标题时，别让它自己的负外边距把首行顶出滚动区 */
+.modal-body>.modal-sub:first-child{margin-top:0}
+/* 右上角 X：所有弹窗统一的关闭入口（openModal 注入，页面各自的 HTML 不再写关闭按钮） */
+.modal-x{flex-shrink:0;margin-left:auto;width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;border:none;padding:0;border-radius:var(--r-sm);background:none;color:var(--fg3,#8f8f8f);font-size:18px;line-height:1;cursor:pointer;transition:background var(--motion-fast),color var(--motion-fast)}
+.modal-x:hover{background:var(--soft,#f2f2f2);color:var(--fg,#171717)}
+.modal-x:focus-visible{outline:none;box-shadow:var(--ds-focus-ring,0 0 0 2px #fff,0 0 0 4px #0070f3)}
+.modal h3{font-size:16px;font-weight:600;letter-spacing:-.4px;margin-bottom:16px}
+.modal-head h3{margin:0}
+.modal label{display:block;font-size:12px;font-weight:500;margin:16px 0 8px;color:var(--fg2,#4d4d4d)}
+.modal-actions{display:flex;gap:8px;margin-top:24px;justify-content:flex-end}
+/* 底部操作条：同样不参与滚动，永远贴在弹窗底边（正文 flex:1 把它顶到最下面） */
+.modal>.modal-actions{flex-shrink:0;margin-top:0;padding-top:24px}
+/* 确认 / 告知框：刻意紧凑的另一档——height:auto 退出上面的固定高、min-height:0 退出最小高，
+   只告知一两句话却撑成 640px 的空白反而难看 */
+.modal.confirm{max-width:400px;height:auto;min-height:0;padding:24px;border-radius:var(--r-md,12px)}
+.modal.confirm h3{margin-bottom:8px}
+.modal.confirm .cd{font-size:14px;color:var(--fg2,#4d4d4d);line-height:1.6}
+/* 弹窗标题下的一句说明：抵掉 h3 的 16px 下边距，把说明拉近标题、与正文拉开 */
+.modal-sub{margin:-8px 0 16px}
+.confirm-ic{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff;background:var(--blue,#0070f3);margin-bottom:16px}
+.modal.confirm.danger .confirm-ic{background:var(--red,#ee0000)}
+.btn-danger-solid{background:var(--red,#ee0000);color:#fff;box-shadow:0 0 0 1px var(--red,#ee0000)}
+.btn-danger-solid:hover{background:var(--red-deep,#c50000)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn-primary:disabled,.btn-danger-solid:disabled{opacity:.45}
+/* 无边框按钮：分页器、表格行内操作都用它；两个外壳（面板 / 用户控制台）都注入这一份 */
+.btn-ghost{box-shadow:none;background:transparent;color:var(--fg2,#4d4d4d)}
+.btn-ghost:hover{background:var(--soft,#f2f2f2);color:var(--fg,#171717)}
+/* ============ 导航栏 logo ============ */
+.logo-mark{width:20px;height:20px;flex-shrink:0;display:block}
+/* ============ 密码可见切换 ============ */
+/* .pw 承载输入框原本的下边距与横向布局，眼睛按钮贴在输入框右内缘。
+   .pw-block 用于堆叠表单（登录 / 注册 / 首次改密页），行内表单（我的页的改密行）
+   由 .apply-row>.pw 自己撑宽，两种布局同一套标记 */
+.pw{position:relative;display:flex;align-items:center}
+.pw>.input{padding-right:48px;margin-bottom:0}
+.pw.pw-block{margin-bottom:16px}
+.pw-eye{position:absolute;right:8px;top:50%;transform:translateY(-50%);border:none;background:none;
+  font-family:inherit;font-size:12px;line-height:1;color:var(--fg3,#8f8f8f);cursor:pointer;padding:8px 4px;border-radius:4px}
+.pw-eye:hover{color:var(--fg,#171717)}
+.pw-eye:focus-visible{outline:none;box-shadow:var(--ds-focus-ring,0 0 0 2px #fff,0 0 0 4px #0070f3)}
+/* ============ 分页条（各列表共用：管理面板 + 用户控制台都注入这一份） ============ */
+.pager{justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap}
+.pager button:disabled{opacity:.4;cursor:not-allowed}
+/* 页码信息占固定宽度：页数/总数位数变化时，「首页 / 上一页 / 下一页 / 末页」不会左右跳；
+   tabular-nums 让数字本身等宽，翻页过程中文字不抖 */
+.pager .pg-info{display:inline-flex;align-items:center;justify-content:center;width:200px;
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+/* ============ 通知中心（顶栏铃铛 + 弹窗：管理端与用户控制台共用这一份） ============ */
+/* 铃铛自带定位上下文：未读红点绝对定位挂在它右上角，不依赖各外壳 .icon-btn 的定位方式 */
+.notif-btn{position:relative}
+.notif-btn .notif-dot{position:absolute;top:4px;right:4px;width:8px;height:8px;border-radius:50%;
+  background:var(--red,#e5484d);display:none}
+/* 弹窗高度写死：切页签 / 翻页只重绘内容，窗口尺寸零跳动（左右留白由 .modal 自身负责） */
+#notif-modal .modal{height:min(70vh,560px);display:flex;flex-direction:column}
+/* 内容区内部滚动、翻页条单独占底部一行：公告再多，翻页器也钉在弹窗底部不动 */
+.notif-body{flex:1 1 auto;min-height:0;overflow-y:auto;padding-right:4px}
+.notif-foot{flex:0 0 auto;margin-top:8px;padding-top:8px;border-top:1px solid var(--line)}
+.notif-foot .pager{margin-top:0;justify-content:center}
+/* 通知条目用网格排版：图标 / 文案 / 时间 / 删除四列在每一行都占同一列宽。
+   时间列取 max-content —— 库里的时间戳格式统一（YYYY-MM-DD HH:MM:SS）宽度一致，
+   于是逐行的时间戳与删除按钮严格对齐，文案长短、换行与否都不影响 */
+.notif-list{display:flex;flex-direction:column;gap:8px}
+.notif-item{display:grid;grid-template-columns:20px minmax(0,1fr) max-content 24px;align-items:center;
+  gap:12px;padding:12px 16px;border-radius:var(--r-sm);background:var(--soft,#f2f2f2);
+  box-shadow:var(--ring,inset 0 0 0 1px rgba(0,0,0,.06))}
+.notif-item .ic{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;color:var(--fg2,#4d4d4d)}
+.notif-item .ic svg{width:16px;height:16px}
+.notif-item .tx{min-width:0;font-size:14px;line-height:1.5;word-break:break-word}
+.notif-item .meta{font-size:12px;color:var(--fg3,#8f8f8f);white-space:nowrap;text-align:right;
+  font-variant-numeric:tabular-nums}
+.notif-item .del{width:24px;height:24px;display:inline-flex;align-items:center;justify-content:center;
+  border:none;border-radius:var(--r-sm);background:none;color:var(--fg3,#8f8f8f);cursor:pointer;padding:0;
+  opacity:.35;transition:opacity var(--motion-fast),color var(--motion-fast)}
+.notif-item .del:hover,.notif-item .del:focus-visible{opacity:1;color:var(--red,#e5484d);background:var(--soft,#f2f2f2)}
+.notif-item .del svg{width:14px;height:14px}
+/* ============ 视觉隐藏（读屏可见） ============ */
+/* 状态列只有一个色点，说明原本只挂在 title 上——空元素上的 title 并不保证被播报。
+   圆点本体标 aria-hidden，语义改由紧随其后的这段文本承担，读屏只念一次 */
+/* 绝对定位必须写死 left/top：不写时它的包含块是初始包含块（最近的非 static 祖先可能是 body），
+   在可横向滚动的宽表格里会落在表格列的静态位置上，撑大整个文档的 scrollWidth（卡片的
+   overflow:hidden 也拦不住，因为包含块在卡片之外）。钉在 0/0 后它只占 1px，不再参与横向溢出 */
+.sr-only{position:absolute;left:0;top:0;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
+  clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+/* ============ 减少动态效果 ============ */
+/* 前庭敏感用户关掉位移与淡入：切页、弹窗、通知都不再移动，只保留颜色类的即时反馈 */
+@media (prefers-reduced-motion: reduce){
+  *,*::before,*::after{animation-duration:.001ms!important;animation-iteration-count:1!important;transition-duration:.001ms!important}
+}
+/* ============ 手机窄屏 ============ */
+/* 放在文件末尾：这些覆盖要压过上面各组件的基础规则——同特异度时由源码顺序决定，
+   写在组件定义之前会被后面的基础值盖回去 */
+@media (max-width:640px){
+  /* 遮罩与弹窗内边距同时收紧，把宽度让给内容；高度改用 dvh，跟随移动端地址栏伸缩，
+     否则 86vh 会在地址栏收起时多出一截、再把操作条顶出屏幕。640px 以上仍是 960×640 */
+  .modal-overlay{padding:12px}
+  .modal{padding:20px 16px;width:100%;height:min(640px,86vh);height:min(640px,calc(100dvh - 24px));border-radius:12px}
+  .modal-head{gap:8px;margin-bottom:12px}
+  /* 长标题/长插件名必须能断行，否则会把右上角 X 挤到下一行 */
+  .modal-head h3{min-width:0;overflow-wrap:anywhere}
+  /* 两三个按钮在窄屏一行排不下时换行，不撑出横向滚动 */
+  .modal-actions{flex-wrap:wrap;margin-top:16px}
+  .modal>.modal-actions{padding-top:16px}
+  /* 确认框按内容自适应高度；长文案或需要手动输入确认词时不能超过视口，超出在正文内滚 */
+  .modal.confirm{max-height:calc(100dvh - 24px)}
+  /* 长串（URL / JSON / EVkey）在窄屏必须能断行，否则会把弹窗拉出横向滚动条 */
+  .modal-body{overflow-wrap:anywhere}
+  .modal .modal-sub{margin:-4px 0 12px}
+  /* 通知条目：时间列 max-content 在窄屏会把正文压成一条缝，改成图标 + 正文 + 删除三列，
+     时间单独落到正文下方一行 */
+  .notif-item{grid-template-columns:20px minmax(0,1fr) 24px;align-items:start;gap:4px 8px}
+  .notif-item .ic{grid-column:1;grid-row:1}
+  .notif-item .tx{grid-column:2;grid-row:1}
+  .notif-item .meta{grid-column:2;grid-row:2;text-align:left}
+  .notif-item .del{grid-column:3;grid-row:1;align-self:start}
+  #notif-modal .modal{height:min(70vh,560px);height:min(70dvh,560px)}
+  /* 分页条：200px 的页码信息会把四个按钮挤成参差两行。改成信息独占一行、按钮居中一行 */
+  .pager{justify-content:center;gap:6px}
+  .pager .pg-info{order:-1;width:100%}
+}
+@media (max-width:400px){
+  .modal-overlay{padding:8px}
+  .modal{padding:16px 12px;height:min(640px,calc(100dvh - 16px));border-radius:10px}
+  .modal.confirm{max-height:calc(100dvh - 16px)}
+}

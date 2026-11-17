@@ -9,6 +9,7 @@ import re
 
 from fastapi.responses import HTMLResponse
 
+from modules.admin_ui.assets import externalize
 from modules.admin_ui.shared_ui import apply_shared_ui
 
 # 一页要用到哪些键，从三处扫：骨架里的 `{{T:…}}` 标记、脚本里的 `T('…')` 调用，
@@ -22,6 +23,12 @@ _LITERAL_RE = re.compile(r"['\"]([a-z][A-Za-z0-9_]*\.[A-Za-z0-9_]+)['\"]")
 
 # 页面是启动时装配好的常量字符串，键集按内容哈希缓存，免得每次导航重扫三百多 KB
 _page_keys_cache = {}
+
+# 装配结果缓存：同一份骨架 + 同一语言，产出永远相同（骨架是启动期常量，动态值在进入
+# 这里之前就已经 replace 进 html，从而体现在哈希里）。缓存后只有「每种语言 × 每种骨架
+# 变体」的首次导航要跑 apply_shared_ui 的多次 replace、整页正则取词与 json_catalog。
+_render_cache = {}
+_RENDER_CACHE_MAX = 32
 
 
 def _page_keys(html):
@@ -41,22 +48,36 @@ def _page_keys(html):
 _NO_STORE = {'Cache-Control': 'no-store'}
 
 
-def panel_html(html, lang=None):
+def panel_html(html, lang=None, externalize_assets=True):
     """所有面板页（含登录/注册/找回密码/首次改密/用户控制台）的统一出口。
 
     取词、共享 UI 注入与语言包的注入都在这里做一次：这几件事都按同一份「当前语言」
     计算，分散到各端点里写会漏掉某个出口（漏掉的那个页面会留着未替换的 `{{T:...}}`）。
+
+    `externalize_assets=False` 供静态版 `/explore`（Vercel 边缘直出、没有 Python 服务
+    兜底）使用：那一份必须自带样式与脚本，不能指向 `/admin/assets/`。
     """
     from modules.i18n.registry import current_lang, json_catalog, translate_html
     lang = lang or current_lang()
-    # 先注入共享 UI 再取词：ACCOUNT_CARDS 等片段是在 apply_shared_ui 里填进来的，
-    # 若先取词，这些片段里的 `{{T:...}}` 就赶不上这一趟，会原样吐给浏览器
-    html = apply_shared_ui(html)
-    # 键集要在 translate_html 之前扫：它会把 `{{T:…}}` 标记就地替换掉，之后就扫不到了
-    keys = _page_keys(html)
-    html = translate_html(html, lang)
-    html = html.replace('{{LANG}}', lang).replace('{{I18N}}', json_catalog(lang, keys))
-    return HTMLResponse(content=html, headers=_NO_STORE)
+    cache_key = (hash(html), lang, externalize_assets)
+    rendered = _render_cache.get(cache_key)
+    if rendered is None:
+        # 先注入共享 UI 再取词：ACCOUNT_CARDS 等片段是在 apply_shared_ui 里填进来的，
+        # 若先取词，这些片段里的 `{{T:...}}` 就赶不上这一趟，会原样吐给浏览器
+        out = apply_shared_ui(html)
+        # 键集要在 translate_html 之前扫：它会把 `{{T:…}}` 标记就地替换掉，之后就扫不到了
+        keys = _page_keys(out)
+        out = translate_html(out, lang)
+        out = out.replace('{{LANG}}', lang).replace('{{I18N}}', json_catalog(lang, keys))
+        # 取词之后再外链：`T('…')` 调用要留在 HTML 里供 _page_keys 扫描（缓存后不再重扫），
+        # 而样式 / 脚本本身与语言无关，可以整块换成长期缓存的外链
+        if externalize_assets:
+            out = externalize(out)
+        if len(_render_cache) >= _RENDER_CACHE_MAX:
+            _render_cache.clear()
+        _render_cache[cache_key] = out
+        rendered = out
+    return HTMLResponse(content=rendered, headers=_NO_STORE)
 
 
 def req_lang(request):

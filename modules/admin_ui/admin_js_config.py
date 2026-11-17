@@ -4,10 +4,23 @@ ADMIN_JS_CONFIG = r'''/* ================= 设置页 ================= */
    别的语言由后端下发的 category_label 显示。
    与旧版「按类别平铺」的关键差别：**不再有跳过项**——原先散在各分页的配置卡片
    （鉴权/日志/缓存/统计/定时/备份）全部并进这里，配置项只此一处入口 */
-var CFG_PAGE_ORDER=['图像参数','时区','鉴权','缓存','限流','并发','统计','定时','更新','管理面板','共享存储','备份','其他'];
-/* 关于：不属于任何分类，固定在菜单最底部 */
+var CFG_PAGE_ORDER=['图像参数','时区','鉴权','缓存','限流','并发','统计','定时','管理面板','共享存储','备份','其他'];
+/* 「更新」不再是独立分类：它是关于页的第二段（版本信息 + 更新操作 + 更新参数同在一张卡）。
+   菜单里不列它，配置项改由关于页渲染——所以排序表与菜单渲染都要跳过它 */
+var SET_UPDATE_CAT='更新';
+/* 高级模式未解锁时隐藏的**单个项**（见关于页）：解锁后它们就在各自分类的原位置出现，
+   菜单分类本身始终不变。这些项要么改错会影响设备/服务行为，要么是不熟的管理员不该碰的底层参数 */
+var ADV_HIDDEN_KEYS=['DEVICE_APPROVAL_REQUIRED','DEVICE_PAIR_TTL_SECONDS','DEVICE_PAIR_MAX_ATTEMPTS',
+  'DEVICE_RATE_PER_MINUTE','DEVICE_MIN_SLEEP_SECONDS','DEVICE_MAX_SLEEP_SECONDS','ADVANCED_MODE_KEY'];
 var SET_ABOUT='about';
 var _setCat='';
+/* 高级模式是否已解锁：状态只活在本次会话（sessionStorage），重新登录要再输一次口令。
+   它是**知情门槛**而非安全边界——真正的高危操作仍受管理组分页权限管控 */
+function advUnlocked(){try{return sessionStorage.getItem('ADV_UNLOCKED')==='1'}catch(e){return false}}
+/* 该配置项此刻是否可见：被锁的项必须等解锁才出现，其余项任何时候都在 */
+function _cfgKeyVisible(k){return advUnlocked()||ADV_HIDDEN_KEYS.indexOf(k)<0}
+/* 该分类此刻是否可见：「更新」并进关于页，任何时候都不单独列 */
+function _catVisible(c){return c!==SET_UPDATE_CAT}
 function _setCatSort(a,b){
   var ia=CFG_PAGE_ORDER.indexOf(a),ib=CFG_PAGE_ORDER.indexOf(b);
   if(ia<0)ia=99;if(ib<0)ib=99;
@@ -23,12 +36,13 @@ function _setCatName(c,d){
 function _setKeysOf(d,cat){
   var out=[];
   Object.keys(d.defaults||{}).forEach(function(k){
+    if(!_cfgKeyVisible(k))return;
     if((((d.labels||{})[k]||{}).category||'其他')===cat)out.push(k);
   });
   return out.sort();
 }
 /* 分类图标（16×16，与侧栏主菜单同一套画法：fill:none;stroke:currentColor）。
-   侧栏折叠成图标条后分类名会被隐藏，只剩图标能把 13 个分类彼此区分开 */
+   侧栏折叠成图标条后分类名会被隐藏，只剩图标能把 12 个分类彼此区分开 */
 var SET_ICONS={
   '图像参数':['<rect x="2.5" y="3.5" width="11" height="9" rx="1.5"/>','<circle cx="6" cy="7" r="1.1"/>','<path d="M3.2 11.6l2.8-2.8 2.4 2.4 2.2-2.2 2.4 2.4"/>'],
   '时区':['<circle cx="8" cy="8" r="5.5"/>','<path d="M8 4.8V8l2.2 1.3"/>'],
@@ -38,7 +52,6 @@ var SET_ICONS={
   '并发':['<rect x="2.8" y="3.2" width="4.2" height="4.2" rx="1"/>','<rect x="9" y="3.2" width="4.2" height="4.2" rx="1"/>','<rect x="2.8" y="8.6" width="4.2" height="4.2" rx="1"/>','<rect x="9" y="8.6" width="4.2" height="4.2" rx="1"/>'],
   '统计':['<path d="M2.5 13.5h11"/>','<path d="M4.8 13.5V9M8 13.5V5M11.2 13.5V7"/>'],
   '定时':['<rect x="3" y="3.6" width="10" height="9.4" rx="1.5"/>','<path d="M3 6.6h10M6 2.4v2.2M10 2.4v2.2"/>'],
-  '更新':['<path d="M12.8 8a4.8 4.8 0 1 1-1.5-3.5"/>','<path d="M13 2.8V6H9.8"/>'],
   '管理面板':['<rect x="2.5" y="3" width="11" height="10" rx="1.5"/>','<path d="M6.6 3v10"/>'],
   '共享存储':['<rect x="2.5" y="2.8" width="11" height="3" rx="1"/>','<rect x="3.5" y="5.8" width="9" height="7.4" rx="1.5"/>','<path d="M6.6 9h2.8"/>'],
   '备份':['<path d="M8 2.4v7.2"/><path d="M5.2 7L8 9.6 10.8 7"/><path d="M3 12.6h10"/>'],
@@ -54,11 +67,13 @@ function _setIcon(cat){
 function renderSetMenu(d){
   var byCat={};
   Object.keys(d.defaults||{}).forEach(function(k){
+    if(!_cfgKeyVisible(k))return;   // 未解锁时被锁的项不进菜单，其所属分类的计数也随之减少
     var c=(((d.labels||{})[k]||{}).category)||'其他';
     (byCat[c]=byCat[c]||[]).push(k);
   });
   var h='';
   Object.keys(byCat).sort(_setCatSort).forEach(function(c){
+    if(!_catVisible(c))return;
     h+='<div class="set-item" data-act="set-cat" data-cat="'+esc(c)+'">'+_setIcon(c)+'<span class="lbl">'+esc(_setCatName(c,d))+
       '</span><span class="cnt">'+byCat[c].length+'</span></div>';
   });
@@ -73,10 +88,11 @@ function refreshConfig(){
   fetchCfg().then(function(d){
     _cfg=d;
     renderSetMenu(d);
-    /* 首次进入选第一个分类；之后保持用户选的那个（刷新/保存后不跳走） */
-    var cats=Object.keys(d.defaults||{}).map(function(k){
+    /* 首次进入选第一个分类；之后保持用户选的那个（刷新/保存后不跳走）。
+       候选里滤掉此刻没有任何可见项的分类，否则未解锁时会默认落进一个菜单里没有的分类 */
+    var cats=Object.keys(d.defaults||{}).filter(function(k){return _cfgKeyVisible(k)}).map(function(k){
       return (((d.labels||{})[k]||{}).category)||'其他';
-    });
+    }).filter(function(c,i,arr){return _catVisible(c)&&arr.indexOf(c)===i});
     var hit=(_setCat&&(cats.indexOf(_setCat)>=0||_setCat===SET_ABOUT))?_setCat:cats.sort(_setCatSort)[0];
     setSelect(hit||SET_ABOUT);
   }).catch(function(){
@@ -85,9 +101,9 @@ function refreshConfig(){
   });
 }
 function setSelect(cat){
+  /* 「更新」并进关于页，菜单里没有它；其余分类都在菜单里，正常可切 */
+  if(!_catVisible(cat))cat=SET_ABOUT;
   _setCat=cat;
-  /* 分类名要等配置数据回来才拿得到，面包屑的「设置 / 分类」在这里补第二段 */
-  paintCrumbs('config');
   var items=document.querySelectorAll('#set-menu .set-item');
   for(var i=0;i<items.length;i++)items[i].classList.toggle('on',items[i].dataset.cat===cat);
   var cfgBox=document.getElementById('set-cfg'),aboutBox=document.getElementById('set-about');

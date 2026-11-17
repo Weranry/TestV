@@ -270,7 +270,7 @@ nav{position:sticky;top:0;z-index:100;background:var(--topbar);backdrop-filter:b
 nav .user{margin-left:auto;font-size:14px;color:var(--fg2);display:flex;align-items:center;gap:8px}
 /* 退出登录 / 主题切换都是图标按钮（与后台面板栏底那份同一个画法）：文字收进 title / aria-label，
    鼠标悬停给提示，不再在顶栏里占一段汉字 */
-nav .user .icon-btn{width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:var(--r-sm);background:none;color:var(--fg2);cursor:pointer;padding:0}
+nav .user .icon-btn{position:relative;width:30px;height:30px;display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:var(--r-sm);background:none;color:var(--fg2);cursor:pointer;padding:0}
 nav .user .icon-btn:hover{color:var(--fg);background:var(--soft)}
 nav .user .icon-btn svg{width:18px;height:18px}
 /* 与后台面板的 main 用同一组内边距与同一个最大宽度：同一块屏幕换一边看，卡片宽窄与留白才一致 */
@@ -364,6 +364,8 @@ tbody tr:hover{background:var(--soft)}
    用子选择器区分，避免同一个 .meta 在两种结构里互相带上对方的边距 */
 .ann-item>.meta{margin-top:8px;display:flex;gap:16px;flex-wrap:wrap}
 .ann-item .h .meta{margin-left:auto}
+/* 通知中心的样式（铃铛红点 / 弹窗高度 / 通知条目网格排版）全部在共享层 ——
+   管理端顶栏与用户控制台顶栏都有同一个铃铛，两处必须是同一份定义 */
 @media (max-width:640px){
   main{padding:16px 16px 40px}
   nav{padding:0 16px}
@@ -377,68 +379,24 @@ tbody tr:hover{background:var(--soft)}
 <body>
 <nav>
   <span class="logo">{{LOGO}}eInkViews</span>
-  <span class="user"><button class="icon-btn" type="button" data-act="theme-toggle" title="{{T:theme.to_dark}}" aria-label="{{T:theme.to_dark}}"></button><span id="nav-user-name"></span><button class="icon-btn" type="button" data-act="logout" title="{{T:nav.logout}}" aria-label="{{T:nav.logout}}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 2.5h-3v11h3"/><path d="M10 5.5L12.5 8 10 10.5M12.6 8H6.5"/></svg></button></span>
+  <span class="user"><span id="nav-user-name"></span><button class="icon-btn" type="button" data-act="theme-toggle" title="{{T:theme.to_dark}}" aria-label="{{T:theme.to_dark}}"></button>{{NOTIF_BELL}}<button class="icon-btn" type="button" data-act="logout" title="{{T:nav.logout}}" aria-label="{{T:nav.logout}}"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 2.5h-3v11h3"/><path d="M10 5.5L12.5 8 10 10.5M12.6 8H6.5"/></svg></button></span>
 </nav>
 <main>
 <!-- 这一页只有一张「我的」面板：账号名/用户组/UID 由第一张「账号信息」卡片承载，
-     页头的大标题与说明已删除，不再重复 -->
-<div class="card" id="ann-card" style="display:none">
-  <div class="card-header">
-    <div class="card-title"><h2>{{T:announce.title}}</h2></div>
-  </div>
-  <div class="card-body">
-    <div class="ann-list" id="ann-list"></div>
-    <div class="flex" id="ann-bar" style="justify-content:flex-end;margin-top:16px;display:none"></div>
-  </div>
-</div>
-
+     页头的大标题与说明已删除，不再重复。站内信与通知统一收进顶栏铃铛的弹窗（见脚本） -->
 {{ACCOUNT_CARDS}}
 </main>
 <script type="application/json" id="i18n-data">{{I18N}}</script>
 <script>{{SHARED_UI_JS}}</script>
 <script>
 var TZ_OFFSET={{TZ_OFFSET}};
-/* fmtDT / doLogout 都是两份外壳共用的通用件，只有一份，在共享层里 */
-/* 站内信：5 条一页，超出才显示翻页条；无内容时整张卡片隐藏，不占版面。
-   这是用户控制台比管理端「我的」分页多的唯一一张卡片 */
-var _annItems=[],_annPage=1,_ANN_PER=5;
-function annRender(){
-  var box=document.getElementById('ann-list'),bar=document.getElementById('ann-bar');
-  var tp=Math.max(1,Math.ceil(_annItems.length/_ANN_PER));
-  if(_annPage>tp)_annPage=tp;
-  box.innerHTML=_annItems.slice((_annPage-1)*_ANN_PER,_annPage*_ANN_PER).map(function(a){
-    return '<div class="ann-item"><div class="h"><b>'+esc(a.title)+'</b><span class="meta">'+esc(fmtDT(a.created_at))+'</span></div>'+
-      (a.content?'<div class="body">'+esc(a.content)+'</div>':'')+'</div>';
-  }).join('');
-  if(_annItems.length>_ANN_PER){
-    bar.style.display='flex';
-    bar.innerHTML='<button class="btn btn-sm" data-act="ann-prev"'+(_annPage<=1?' disabled':'')+'>'+T('pager.prev','上一页')+'</button>'+
-      '<span class="dim small">'+T('account.page_of','{cur} / {total} 页',{cur:_annPage,total:tp})+'</span>'+
-      '<button class="btn btn-sm" data-act="ann-next"'+(_annPage>=tp?' disabled':'')+'>'+T('pager.next','下一页')+'</button>';
-  }else bar.style.display='none';
-}
-function loadAnnouncements(){
-  R.get('/admin/api/my/announcements').then(function(d){
-    if(!d||d.success===false)return;
-    _annItems=d.items||[];
-    if(!_annItems.length)return;
-    document.getElementById('ann-card').style.display='';
-    annRender();
-  }).catch(function(){});
-}
-/* 本页只接管「退出登录」与站内信翻页：其余 data-act（Key / 改密 / 记录翻页）
-   由 account_page.ACCOUNT_JS 的委托处理，两边不重复绑定 */
+/* fmtDT / doLogout / 通知中心（铃铛、弹窗、两栏渲染）都是两份外壳共用的通用件，
+   只有一份定义，在共享层里；本页只需补上「退出登录」这一个本页独有动作 */
 document.addEventListener('click',function(e){
   var el=e.target.closest('[data-act]');
   if(!el)return;
   if(el.dataset.act==='logout')doLogout();
-  else if(el.dataset.act==='ann-prev'){if(_annPage>1){_annPage--;annRender()}}
-  else if(el.dataset.act==='ann-next'){
-    var tp=Math.max(1,Math.ceil(_annItems.length/_ANN_PER));
-    if(_annPage<tp){_annPage++;annRender()}
-  }
 });
-loadAnnouncements();
 </script>
 <script>{{ACCOUNT_JS}}</script>
 </body>

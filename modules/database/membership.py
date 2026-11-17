@@ -58,6 +58,20 @@ def log_change(account_id, action, old, new, reason='', admin_name=''):
         ),
         commit=True,
     )
+    # 权限变更也进用户端通知中心：这里挂钩可以让「管理端调整」与「激活码到期归位」两条
+    # 调用线自动全覆盖，不必各自记得再发一次。函数内 import 避免模块级循环依赖
+    # （notifications 反过来不依赖 membership）。
+    from modules.database import notifications
+    notifications.create_notification(account_id, 'membership', payload={
+        'action': action or '',
+        'group_name': _pick(new, 'group_name'),
+        'old_group_name': _pick(old, 'group_name'),
+        'new_group_name': _pick(new, 'group_name'),
+        'expires_on': _pick(new, 'expires_on'),
+        'fallback_group_name': _pick(new, 'fallback_group_name'),
+        'reason': reason or '',
+        'admin_name': admin_name or '',
+    })
 
 
 def list_logs(account_id, limit=50, offset=0):

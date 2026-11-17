@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="{{LANG}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>{{T:chpass.page_title}}</title>
+<style>
+{{SHARED_UI_CSS}}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--sans);background:var(--bg);display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;color:var(--fg)}
+.card{background:var(--ds-background-100);border-radius:var(--r-md);padding:40px 32px;width:380px;max-width:100%;box-shadow:var(--sh-2)}
+.card h1{font-size:24px;font-weight:600;letter-spacing:-.4px;margin-bottom:4px}
+.card p{font-size:14px;color:var(--fg2);margin-bottom:24px}
+input{font-family:inherit;font-size:inherit}
+.input{width:100%;height:40px;padding:0 16px;border:none;border-radius:var(--r-sm);font-size:14px;outline:none;margin-bottom:16px;box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-500);background:var(--ds-background-100);color:var(--fg)}
+.input:hover{box-shadow:inset 0 0 0 1px var(--ds-gray-alpha-600)}
+.input:focus{box-shadow:inset 0 0 0 1px var(--ds-focus-color),var(--ds-focus-ring)}
+.btn{display:block;width:100%;height:40px;border:none;border-radius:var(--r-sm);font-size:14px;font-weight:500;cursor:pointer;transition:all var(--motion-fast)}
+.btn-primary{background:var(--ds-gray-1000);color:var(--ds-background-100)}
+.btn-primary:hover{background:var(--ds-gray-900)}
+</style>
+{{THEME_INIT}}
+</head>
+<body>
+<div class="card">
+  <h1>{{T:chpass.title}}</h1>
+  <div class="pw pw-block"><input class="input" type="password" id="pw1" placeholder="{{T:reset.new_password}}" autocomplete="new-password"><button type="button" class="pw-eye" data-act="pw-toggle" aria-pressed="false"></button></div>
+  <div class="pw pw-block"><input class="input" type="password" id="pw2" placeholder="{{T:reset.confirm_password}}" autocomplete="new-password"><button type="button" class="pw-eye" data-act="pw-toggle" aria-pressed="false"></button></div>
+  <button class="btn btn-primary" id="submit-btn" data-act="change-pw">{{T:chpass.submit}}</button>
+</div>
+<script type="application/json" id="i18n-data">{{I18N}}</script>
+<script>{{SHARED_UI_JS}}</script>
+<script>
+async function doChange(btn){
+  var p1=document.getElementById('pw1').value,p2=document.getElementById('pw2').value;
+  if(!p1||p1.length<6){toast(T('auth.pw_short','密码至少 6 位'),'error');return}
+  if(p1!==p2){toast(T('auth.pw_mismatch','两次输入的密码不一致'),'error');return}
+  btnBusy(btn,true,T('auth.submitting','提交中…'));
+  try{
+    var r=await fetch('/admin/api/auth/change-password',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:p1})});
+    var d=await r.json();
+    if(r.ok){toast(T('chpass.success','密码已修改，正在跳转…'),'success');setTimeout(function(){window.location.href='/admin'},900)}
+    else{btnBusy(btn,false);toast(d.message||T('chpass.failed','修改失败'),'error')}
+  }catch(e){btnBusy(btn,false);toast(T('msg.network_error','网络错误'),'error')}
+}
+document.addEventListener('click',function(e){
+  var el=e.target.closest('[data-act="change-pw"]');
+  if(el)doChange(el);
+});
+document.getElementById('pw2').addEventListener('keydown',function(e){if(e.key==='Enter')doChange(document.getElementById('submit-btn'))});
+</script>
+</body>
+</html>

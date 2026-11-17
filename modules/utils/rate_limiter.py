@@ -1,4 +1,5 @@
 import asyncio
+import hashlib
 import time
 import threading
 from collections import deque
@@ -102,9 +103,14 @@ def _quota_scope(request):
     user_id = _account_id(request)
     if user_id is not None:
         return f'user:{user_id}'
-    evkey = request.headers.get('evkey') or request.query_params.get('evkey')
+    # 与鉴权中间件同一口径：evkey 只从请求头取（query 传法已禁用）
+    evkey = request.headers.get('evkey')
     if evkey:
-        return f'evkey:{evkey}'
+        # 明文 evkey 不能作为 key 出进程：启用共享 Redis 时 key 名会原样发往远端，
+        # 连接或实例被看到就等于泄露设备凭据。用定长 sha256 摘要做 key，既不可逆，
+        # 又对同一 evkey 保持稳定聚合（窗口计数是易失数据，换格式不影响语义）。
+        digest = hashlib.sha256(evkey.encode('utf-8', 'replace')).hexdigest()[:32]
+        return f'evkey:{digest}'
     # 取法与登录防撞库共用一份（modules/utils/client_ip.py）：
     # 代理后的部署要么开 TRUST_PROXY_HEADERS，要么所有人共用这一份额度
     from modules.utils.client_ip import client_ip
@@ -296,6 +302,39 @@ async def _consume_quota(request, limit, period):
     return allowed, max(0, effective - used) if allowed else 0, effective
 
 
+async def consume_account_quota(group_id, account_id):
+    """按账号消耗一次长周期「计次额度」，供不走全局限流中间件的入口调用（目前是设备取图）。
+
+    返回 `(是否放行, 拒绝文案, 实际额度)`。以下情况一律放行（返回 `(True, None, 0)`）：
+
+    - 全站限流总开关关闭（与中间件口径一致，关了就彻底不计）；
+    - 设备未配对（无账号归属）或所属用户组已不存在；
+    - 用户组未设计次额度（`quota_limit <= 0`，0 = 不限，热路径不落库）。
+
+    查库异常同样放行：计次额度是业务约束，数据库抖动不该把设备刷新整体打成 500；
+    异常计入 `quota_consume_errors`，便于在 /metrics 上发现被悄悄绕过的额度。
+    """
+    from config import RATE_LIMIT_ENABLE
+    if not RATE_LIMIT_ENABLE or account_id is None or group_id is None:
+        return True, None, 0
+    limits = await _resolve_group_limits(group_id)
+    if limits is None:
+        return True, None, 0
+    _per_minute, quota_limit, quota_period = limits
+    if quota_limit <= 0:
+        return True, None, 0
+    try:
+        from modules.database.quotas import consume
+        allowed, _used, _period, effective = await asyncio.to_thread(
+            consume, account_id, quota_limit, quota_period)
+    except Exception:
+        _metrics.incr('quota_consume_errors')
+        return True, None, 0
+    if allowed:
+        return True, None, effective
+    return False, _quota_exhausted_label(quota_period).format(limit=effective), effective
+
+
 async def rate_limit_middleware(request: Request, call_next):
     from config import (
         RATE_LIMIT_ENABLE, RATE_LIMIT_WHITELIST,
@@ -307,7 +346,9 @@ async def rate_limit_middleware(request: Request, call_next):
 
     path = request.url.path
     for prefix in RATE_LIMIT_WHITELIST:
-        if path.startswith(prefix):
+        # 与鉴权白名单同一口径的路径段匹配：白名单里的 `/device` 不能连带放行 `/devicex`
+        # 这类只是字符串前缀相同的路径（插件可以注册任意首段路径）。
+        if path == prefix or (prefix != '/' and path.startswith(prefix + '/')):
             return await call_next(request)
 
     group_id = getattr(request.state, 'user_group_id', None)

@@ -133,9 +133,9 @@ def _coerce(key, spec, raw):
         value = _parse_enum(key, spec, text)
     if value_type in _NUMERIC_TYPES:
         if 'min' in spec and value < spec['min']:
-            raise ParamError(f'参数 {key} 不能小于 {spec["min"]}')
+            raise ParamError('api.err_param_min', key=key, min=spec["min"])
         if 'max' in spec and value > spec['max']:
-            raise ParamError(f'参数 {key} 不能大于 {spec["max"]}')
+            raise ParamError('api.err_param_max', key=key, max=spec["max"])
     return value
 
 
@@ -152,14 +152,14 @@ def _parse_bool(key, text):
         return True
     if lowered in _BOOL_FALSE:
         return False
-    raise ParamError(f'参数 {key} 必须为 t / f 或 true / false')
+    raise ParamError('api.err_param_bool', key=key)
 
 
 def _parse_number(key, text, caster, name):
     try:
         return caster(text.strip())
     except (TypeError, ValueError):
-        raise ParamError(f'参数 {key} 必须为{name}')
+        raise ParamError('api.err_param_name', key=key, name=name)
 
 
 def _parse_enum(key, spec, text):
@@ -167,4 +167,4 @@ def _parse_enum(key, spec, text):
         if text == str(option['value']):
             return option['value']
     choices = ' / '.join(str(option['value']) for option in spec['options'])
-    raise ParamError(f'参数 {key} 必须为 {choices}')
+    raise ParamError('api.err_param_choices', key=key, choices=choices)

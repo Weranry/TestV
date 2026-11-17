@@ -36,7 +36,7 @@ def parse_rotate_arg(value):
         return None
     rotate = ROTATE_MAP.get(value)
     if rotate is None:
-        raise ParamError('rotate 参数必须为 c / cc / h')
+        raise ParamError('api.err_rotate')
     return rotate
 
 
@@ -46,7 +46,7 @@ def parse_invert_arg(value):
         return None
     invert = INVERT_MAP.get(value)
     if invert is None:
-        raise ParamError('invert 参数必须为 t 或 f')
+        raise ParamError('api.err_invert')
     return invert
 
 
@@ -56,7 +56,7 @@ def parse_cmode_arg(value):
         return None
     from modules.generate_views.palette_mapper import CMODE_ARG_VALUES
     if value not in CMODE_ARG_VALUES:
-        raise ParamError('cmode 参数必须为 ' + ' / '.join(CMODE_ARG_VALUES))
+        raise ParamError('api.err_cmode', values=' / '.join(CMODE_ARG_VALUES))
     return value
 
 
@@ -67,11 +67,11 @@ def resolve_view_params(plugin_name, plugin_dir, size, query_params):
     也是预渲染缓存键的输入，因此必须在 merge 之后取。
     """
     if not size:
-        raise ParamError('缺少 size 参数')
+        raise ParamError('api.err_size_missing')
     # size 会当成模块名拼成 plugins.<plugin>.view.<kind>.<size>：形状不对时先给一句
     # 明确的 400，而不是让 importlib 抛 ModuleNotFoundError 再被包成一句含堆栈的报错
     if not size.isidentifier() or size.startswith('_'):
-        raise ParamError('size 参数不合法')
+        raise ParamError('api.err_size_bad')
     from modules.plugins.plugin_loader import load_plugin_config, get_plugin_default_args
     # 插件配置每次请求现取（load_plugin_config 自带缓存，面板保存时会清缓存）
     plugin_config = load_plugin_config(plugin_name, plugin_dir)

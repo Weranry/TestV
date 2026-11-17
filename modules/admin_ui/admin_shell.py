@@ -35,10 +35,6 @@ a{color:var(--blue);text-decoration:none}
 /* 侧栏内的图标再放大一档（20px）：导航项、设置分类项、栏底按钮组都走这一条。
    顶栏那份在 .sidebar 之外，仍是全局 18px，不受影响 */
 .sidebar .ic{width:20px;height:20px}
-/* 「返回主页」：只在设置模式下出现（侧栏整条已换成设置分类菜单，主业菜单收起来了） */
-.snav-back{width:30px;height:30px;flex-shrink:0;display:inline-flex;align-items:center;justify-content:center;border:none;border-radius:var(--r-sm);background:none;color:var(--fg3);cursor:pointer;padding:0}
-.snav-back:hover{color:var(--fg);background:var(--soft)}
-.snav-back[hidden]{display:none}
 /* 导航列表：列向排布 + 4px 项间距。行高 36px、内边距 8px，配上 20px 的图标，
    整条侧栏的节奏才不至于稀疏 */
 .snav{flex:1;overflow-y:auto;padding:8px 8px 16px;display:flex;flex-direction:column;gap:4px}
@@ -59,6 +55,16 @@ a{color:var(--blue);text-decoration:none}
 .snav-sub{display:flex;flex-direction:column;gap:4px;padding-left:16px;margin:4px 0}
 .snav-sub[hidden]{display:none}
 .snav-sub .tab{font-size:12px;font-weight:400;min-height:32px;padding:4px 8px}
+/* 二级项的小图标比一级项（.sidebar .ic 20px）小一档，跟 12px 字号更相称 */
+.snav-sub .tab .ic{width:16px;height:16px}
+/* ---------- 折叠态：二级菜单飞窗 ---------- */
+/* 侧栏收成图标条后行文字与 .snav-sub 都被 CSS 收掉，分组项点一下从侧栏右缘飞出这一组
+   的二级项。挂到 body 上用 fixed：侧栏里的 .snav 是 overflow:auto 的滚动区，放进它的
+   绝对定位子元素会被连同横向一起裁掉，坐标在打开时按图标外框算一次 */
+.snav-flyout{position:fixed;z-index:200;min-width:152px;display:flex;flex-direction:column;gap:2px;padding:6px;background:var(--ds-background-100);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--sh-2)}
+.fy-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border:none;background:none;color:var(--fg2);font-weight:500;border-radius:var(--r-sm);cursor:pointer;white-space:nowrap;text-align:left}
+.fy-item:hover{background:var(--soft);color:var(--fg)}
+.fy-item.on{background:var(--soft-2);color:var(--fg)}
 /* 侧栏底部：头像 + 用户名 + 图标按钮组（设置 / 返回 / 退出）。
    有侧栏时这一组恒在这里；无侧栏的用户（普通用户）改由顶栏右侧承载同一份 */
 .snav-foot{border-top:1px solid var(--line);padding:8px 16px;display:flex;align-items:center;gap:8px;font-size:14px;color:var(--fg2);flex-shrink:0}
@@ -85,9 +91,15 @@ a{color:var(--blue);text-decoration:none}
 .crumbs{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--fg3);min-width:0;overflow:hidden;white-space:nowrap}
 .crumbs .sep{color:var(--faint)}
 .crumbs .cur{color:var(--fg);font-weight:500}
-/* 顶栏右端：主题切换常驻，用户组（无侧栏时才出现）跟在它后面。
-   margin-left:auto 挪到主题按钮上，用户组那侧的自动边距要归零，否则两块之间会被平分出一段空白 */
-.theme-btn{margin-left:auto}
+/* 顶栏右端：用户名（只「我的」页露出）+ 主题切换 + 通知铃铛，整块靠这个 auto 边距贴右端；
+   无侧栏时 `.topbar-user`（用户组那一组）跟在它后面。auto 边距**只留这一处**，别再加到别处——
+   两处都写 auto 会把两块之间的空白平分，看着像中间破了一段 */
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+/* 用户名与顶栏同字号；过长走省略号，别把后面的图标挤出去 */
+.top-name{font-size:14px;font-weight:500;color:var(--fg);max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* 铃铛槽位紧贴主题按钮。初始 display:none 写在元素行内（开机未必走 switchTab），
+   paintNotifSlot 复显时清掉行内值，落回这条 —— 用 inline-flex 让铃铛与主题按钮同高居中 */
+.notif-slot{display:inline-flex;align-items:center}
 /* 无侧栏时的用户组：与侧栏底部那份同构（头像 + 名字 + 设置 + 退出），贴在最右端。有侧栏时隐藏 */
 .topbar-user{display:flex;align-items:center;gap:8px;font-size:14px;color:var(--fg2)}
 .topbar-user[hidden]{display:none}
@@ -121,6 +133,13 @@ main{padding:24px 24px 64px;max-width:1400px;margin:0 auto;width:100%}
    标题与说明的左边缘就对不齐了，跨卡片看标题也会比别的卡片缩进一截） */
 .card.cfg .card-header{background:var(--soft);border-bottom-color:var(--line)}
 .sec-title{font-size:14px;font-weight:600;margin:24px 0 8px;color:var(--fg);letter-spacing:-.2px}
+/* ---------- 列表工具条 ---------- */
+/* 弹窗里的「操作按钮 + 列表」一律先操作、后列表：工具条压在列表上方，下边一条分隔线
+   把它与列表切开。按钮写在列表下方时，空数据（`.empty` 一大块留白）会把按钮推到很远的
+   底部，看着像两个互不相关的块，数据少时尤其明显。左端放操作、右端放计数（.grow 撑开） */
+.list-tool{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding-bottom:12px;border-bottom:1px solid var(--line);margin-bottom:16px}
+.list-tool .grow{flex:1 1 auto}
+.list-tool>.dim{margin:0;white-space:nowrap}
 .panel{background:var(--soft);border-radius:var(--r-sm);box-shadow:var(--ring);padding:16px;font-size:12px}
 /* ---------- Metrics ---------- */
 .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:16px}
@@ -424,19 +443,29 @@ td .acts{flex-wrap:nowrap}
 .test-field.num{width:100px;flex:0 0 auto}
 .payload{max-height:220px;overflow:auto;white-space:pre-wrap;line-height:1.6}
 .res-err{color:var(--red-deep);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-/* ---------- 设置（分类菜单在侧栏里，右侧只剩配置项） ---------- */
-/* 进入设置后整条左侧栏换成设置分类菜单（#set-menu，见 admin_js_config.renderSetMenu），
-   右侧这一栏只渲染选中分类的配置表。原先散在各分页的配置卡片全部收敛到这里，
-   所以这一页是所有配置项的唯一入口 */
+/* ---------- 设置弹窗（左窄栏＝分类菜单，右宽栏＝配置项） ---------- */
+/* 设置由工作区里的分页改成了一个覆盖层弹窗（见 admin_js_core.openSettingsModal）：
+   弹窗本体 .modal.set-modal 去掉默认内边距、换成专属更大尺寸，内部两栏——
+   左 .set-side 是分类菜单（#set-menu，见 admin_js_config.renderSetMenu），右 .set-main
+   是选中分类的配置表。原先散在各分页的配置卡片全部收敛到这里，配置项只此一处入口 */
+.modal.set-modal{padding:0;width:min(1100px,100%);height:min(720px,90vh)}
+/* 头行：标题 + 右上角 X。flex-shrink:0 让它不参与滚动，X 因此恒钉在弹窗右上角 */
+.set-modal-head{align-items:center;margin:0;padding:16px 24px;border-bottom:1px solid var(--line)}
+.set-modal-head h2{font-size:16px;font-weight:600;letter-spacing:-.3px}
+.set-modal-body{flex:1;min-height:0;display:flex}
+/* 左窄栏：分类菜单独立滚动，与右侧内容互不影响 */
+.set-side{width:220px;flex-shrink:0;border-right:1px solid var(--line);padding:12px;overflow-y:auto}
 .set-menu{display:flex;flex-direction:column;gap:4px}
-/* 分类项外观与主菜单项一致（同底、同选中态、同行高），折叠成图标条后同样只剩图标 */
+/* 分类项外观与主菜单项一致（同底、同选中态、同行高） */
 .set-item{position:relative;display:flex;align-items:center;gap:8px;min-height:36px;padding:8px;border-radius:var(--r-sm);font-size:14px;font-weight:500;color:var(--fg2);cursor:pointer;transition:background var(--motion-fast),color var(--motion-fast);white-space:nowrap}
 .set-item:hover{color:var(--fg);background:var(--soft)}
 .set-item.on{background:var(--soft-2);color:var(--fg)}
 .set-item .cnt{margin-left:auto;font-size:11px;font-weight:400;color:var(--fg3)}
 .set-sep{height:1px;background:var(--line);margin:8px}
-/* 右侧配置栏：原先是 .set-shell 的内右栏，现在自己就是一张卡片 */
-.set-body{min-width:0;display:flex;flex-direction:column;background:var(--ds-background-100);border-radius:var(--r-md);box-shadow:var(--card-shadow);overflow:hidden}
+/* 右宽栏：工具条（导出/导入/刷新）钉在顶部不滚，正文在 .set-scroll 内滚动 */
+.set-main{flex:1;min-width:0;display:flex;flex-direction:column}
+.set-toolbar{flex-shrink:0;display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 24px;border-bottom:1px solid var(--line)}
+.set-scroll{flex:1;min-height:0;overflow-y:auto}
 .set-head{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding:16px 24px;border-bottom:1px solid var(--line)}
 .set-head h2{font-size:16px;font-weight:600;letter-spacing:-.3px}
 .set-head .dim{white-space:nowrap}
@@ -447,6 +476,8 @@ td .acts{flex-wrap:nowrap}
 #set-about>.card:last-child{margin-bottom:24px}
 .about-actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .about-note{margin-top:16px;font-size:12px;line-height:1.6}
+/* 「更新」卡片里的更新参数表：与上方的信息/按钮之间留一段，作为同一张卡的第二段 */
+.about-sub{margin-top:24px;padding-top:16px;border-top:1px solid var(--line);font-size:12px;font-weight:600;color:var(--fg2)}
 /* 折叠成图标条。只作用于宽屏：窄屏侧栏本来就是抽屉，「窄条」没有意义，
    折叠态在那边必须当作不存在，否则抽屉会被压成 56px */
 @media (min-width:901px){
@@ -457,8 +488,7 @@ td .acts{flex-wrap:nowrap}
      与 26px 的按钮加起来就撑破了这一列；此时品牌区只剩那个「>」按钮 */
   .shell.folded .side-brand{justify-content:center;gap:4px;padding:0}
   .shell.folded .side-brand .logo{display:none}
-  .shell.folded .side-brand .icon-btn,
-  .shell.folded .side-brand .snav-back{width:26px;height:26px}
+  .shell.folded .side-brand .icon-btn{width:26px;height:26px}
   .shell.folded .brand-text,
   .shell.folded .snav .tab .lbl,
   .shell.folded .set-item .lbl,
@@ -494,6 +524,9 @@ td .acts{flex-wrap:nowrap}
   .card-body{padding:16px}
   th,td{padding-left:8px;padding-right:8px}
   .set-head{padding:16px}
+  /* 设置弹窗的窄屏两栏：左栏收窄，给右侧配置表留出宽度 */
+  .modal.set-modal .set-side{width:160px;padding:8px}
+  .set-toolbar{padding:12px 16px}
   #set-about>.card{margin:16px}
 }
 {{ACCOUNT_CSS}}
@@ -507,7 +540,6 @@ ADMIN_BODY = r'''{{THEME_INIT}}
 <aside class="sidebar" id="sidebar">
   <div class="side-brand">
     <span class="logo">{{LOGO}}<span class="brand-text">eInkViews</span></span>
-    <button class="snav-back" type="button" data-act="set-home" hidden title="{{T:nav.back_home}}" aria-label="{{T:nav.back_home}}"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3.5L2.5 8 7 12.5M3 8h10.5"/></svg></button>
     <!-- 折叠/展开侧栏：贴着 logo 与站名，箭头指向侧栏将要移动的方向——
          展开态显示「<」（点了往左收），折叠态显示「>」（点了往右展） -->
     <button class="icon-btn" type="button" data-act="snav-fold-toggle" aria-expanded="true" title="{{T:nav.collapse}}" aria-label="{{T:nav.collapse}}"><svg class="ic chev-in" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9.8 3.5L5.3 8l4.5 4.5"/></svg><svg class="ic chev-out" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.2 3.5L10.7 8l-4.5 4.5"/></svg></button>
@@ -520,11 +552,19 @@ ADMIN_BODY = r'''{{THEME_INIT}}
       <button class="snav-arrow" type="button" data-act="snav-fold" data-group="users" aria-expanded="false" aria-label="{{T:nav.expand}}"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.5l4 4 4-4"/></svg></button>
     </div>
     <div class="snav-sub" id="snav-sub-users" data-group="users" hidden>
-      <span class="tab" data-page="users" data-sub="groups" onclick="switchTab('users','groups')"><span class="lbl">{{T:user.groups}}</span></span>
-      <span class="tab" data-page="users" data-sub="accounts" onclick="switchTab('users','accounts')"><span class="lbl">{{T:user.accounts}}</span></span>
-      <span class="tab" data-page="users" data-sub="codes" onclick="switchTab('users','codes')"><span class="lbl">{{T:user.codes}}</span></span>
-      <span class="tab" data-page="users" data-sub="apps" onclick="switchTab('users','apps')"><span class="lbl">{{T:user.apps}}</span><span class="nav-dot" id="apps-dot2" style="display:none"></span></span>
-      <span class="tab" id="nav-ann" data-page="users" data-sub="announce" onclick="switchTab('users','announce')"><span class="lbl">{{T:announce.nav}}</span></span>
+      <span class="tab" data-page="users" data-sub="groups" onclick="switchTab('users','groups')"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="5.5" r="2.3"/><path d="M1.8 13.5c0-2.3 1.9-3.6 4.2-3.6s4.2 1.3 4.2 3.6"/><path d="M11.2 3.7a2.2 2.2 0 0 1 0 4.1M12.4 13.5c0-1.4-.5-2.5-1.4-3.2"/></svg><span class="lbl">{{T:user.groups}}</span></span>
+      <span class="tab" data-page="users" data-sub="accounts" onclick="switchTab('users','accounts')"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="5.6" r="2.6"/><path d="M3 13.4c0-2.6 2.2-4.1 5-4.1s5 1.5 5 4.1"/></svg><span class="lbl">{{T:user.accounts}}</span></span>
+      <span class="tab" data-page="users" data-sub="codes" onclick="switchTab('users','codes')"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5.6" cy="10.4" r="2.6"/><path d="M7.5 8.5l5-5M10.6 5.4l1.6 1.6M12.2 3.8l1.6 1.6"/></svg><span class="lbl">{{T:user.codes}}</span></span>
+      <span class="tab" data-page="users" data-sub="apps" onclick="switchTab('users','apps')"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.6 7.6v5.4h8.8V7.6"/><path d="M2 7.6l2-4.2h8l2 4.2"/><path d="M3.6 7.6h3l.7 1.6h1.4l.7-1.6h3"/></svg><span class="lbl">{{T:user.apps}}</span><span class="nav-dot" id="apps-dot2" style="display:none"></span></span>
+      <span class="tab" id="nav-ann" data-page="users" data-sub="announce" onclick="switchTab('users','announce')"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.6c-2 0-3.3 1.5-3.3 3.3 0 2.6-.9 3.4-1.4 4h9.4c-.5-.6-1.4-1.4-1.4-4 0-1.8-1.3-3.3-3.3-3.3z"/><path d="M6.4 12.1a1.7 1.7 0 0 0 3.2 0"/></svg><span class="lbl">{{T:announce.nav}}</span></span>
+    </div>
+    <div class="snav-group" id="snav-group-devices">
+      <span class="tab" data-page="devices" onclick="toggleSnavFold('devices')"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="3" width="11.6" height="7.6" rx="1.2"/><path d="M8 10.6v3M5.8 13.6h4.4"/></svg><span class="lbl">{{T:nav.devices}}</span><span class="nav-dot" id="dsignin-dot" style="display:none"></span></span>
+      <button class="snav-arrow" type="button" data-act="snav-fold" data-group="devices" aria-expanded="false" aria-label="{{T:nav.expand}}"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.5l4 4 4-4"/></svg></button>
+    </div>
+    <div class="snav-sub" id="snav-sub-devices" data-group="devices" hidden>
+      <span class="tab" data-page="devices" data-sub="list" onclick="switchTab('devices','list')"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2.2" y="3" width="11.6" height="7.6" rx="1.2"/><path d="M8 10.6v3M5.8 13.6h4.4"/></svg><span class="lbl">{{T:device.list}}</span></span>
+      <span class="tab" data-page="devices" data-sub="approvals" onclick="switchTab('devices','approvals')"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2.5 8.6l1.6-4.1h7.8l1.6 4.1v3.6h-11z"/><path d="M2.5 8.6h3l.6 1.4h3.8l.6-1.4h3"/></svg><span class="lbl">{{T:device.approvals}}</span><span class="nav-dot" id="dsignin-dot2" style="display:none"></span></span>
     </div>
     <div class="snav-group"><span class="tab" data-page="test" onclick="switchTab('test')"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 2.5h3v3l3.1 5.9a1.5 1.5 0 0 1-1.3 2.1H4.7a1.5 1.5 0 0 1-1.3-2.1L6.5 5.5z"/><path d="M5.3 9.5h5.4"/></svg><span class="lbl">{{T:nav.test}}</span></span></div>
     <div class="snav-group" id="snav-group-logs">
@@ -532,23 +572,18 @@ ADMIN_BODY = r'''{{THEME_INIT}}
       <button class="snav-arrow" type="button" data-act="snav-fold" data-group="logs" aria-expanded="false" aria-label="{{T:nav.expand}}"><svg viewBox="0 0 16 16" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6.5l4 4 4-4"/></svg></button>
     </div>
     <div class="snav-sub" id="snav-sub-logs" data-group="logs" hidden>
-      <span class="tab" data-page="logs" data-sub="request" onclick="switchTab('logs','request')"><span class="lbl">{{T:log.tab_request}}</span></span>
-      <span class="tab" data-page="logs" data-sub="audit" onclick="switchTab('logs','audit')"><span class="lbl">{{T:log.tab_audit}}</span></span>
-      <span class="tab" data-page="stats" onclick="switchTab('stats')"><span class="lbl">{{T:nav.stats}}</span></span>
+      <span class="tab" data-page="logs" data-sub="request" onclick="switchTab('logs','request')"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3.6 2.6h6l3 3v7.8h-9z"/><path d="M9.6 2.6v3h3M5.8 8.8h4.4M5.8 11.2h4.4"/></svg><span class="lbl">{{T:log.tab_request}}</span></span>
+      <span class="tab" data-page="logs" data-sub="audit" onclick="switchTab('logs','audit')"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 2.2l4.6 1.7v3.9c0 2.9-2 5-4.6 6-2.6-1-4.6-3.1-4.6-6V3.9z"/><path d="M5.9 8l1.4 1.5L10.1 6.9"/></svg><span class="lbl">{{T:log.tab_audit}}</span></span>
+      <span class="tab" data-page="stats" onclick="switchTab('stats')"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" aria-hidden="true"><path d="M2.6 13.4h10.8"/><path d="M5.2 13.4V9.2M8 13.4V6.2M10.8 13.4v-3"/></svg><span class="lbl">{{T:nav.stats}}</span></span>
     </div>
     <div class="snav-group"><span class="tab" data-page="cache" onclick="switchTab('cache')"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><ellipse cx="8" cy="4" rx="4.5" ry="1.8"/><path d="M3.5 4v4c0 1 2 1.8 4.5 1.8s4.5-.8 4.5-1.8V4"/><path d="M3.5 8v4c0 1 2 1.8 4.5 1.8s4.5-.8 4.5-1.8V8"/></svg><span class="lbl">{{T:nav.cache}}</span></span></div>
     <div class="snav-group"><span class="tab" data-page="prerender" onclick="switchTab('prerender')"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="5.5"/><path d="M8 5v3.2l2.2 1.4"/></svg><span class="lbl">{{T:nav.prerender}}</span></span></div>
     <div class="snav-group"><span class="tab" data-page="backup" onclick="switchTab('backup')"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 2.8h12v2.6H2z"/><path d="M3 5.4h10v7.8H3z"/><path d="M6.4 8.6h3.2"/></svg><span class="lbl">{{T:nav.backup}}</span></span></div>
   </nav>
-  <!-- 设置模式：整条侧栏换成设置分类菜单（内容由 renderSetMenu 生成），主菜单同时收起 -->
-  <nav class="snav" id="snav-set" hidden>
-    <div class="set-menu" id="set-menu" aria-label="{{T:set.categories}}"></div>
-  </nav>
   <div class="snav-foot">
     <button class="avatar" type="button" id="nav-avatar" data-act="go-account" title="{{T:nav.account}}" aria-label="{{T:nav.account}}"></button>
     <span class="nm" id="nav-user-name" data-act="go-account"></span>
     <button class="icon-btn" type="button" id="nav-set-btn" data-act="set-enter" title="{{T:nav.config}}" aria-label="{{T:nav.config}}"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/><circle cx="12" cy="12" r="3"/></svg></button>
-    <button class="icon-btn" type="button" id="nav-home-btn" data-act="set-home" hidden title="{{T:nav.back_home}}" aria-label="{{T:nav.back_home}}"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 3.5L2.5 8 7 12.5M3 8h10.5"/></svg></button>
     <button class="icon-btn" type="button" data-act="logout" title="{{T:nav.logout}}" aria-label="{{T:nav.logout}}"><svg class="ic" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 2.5h-3v11h3"/><path d="M10 5.5L12.5 8 10 10.5M12.6 8H6.5"/></svg></button>
   </div>
 </aside>
@@ -557,8 +592,18 @@ ADMIN_BODY = r'''{{THEME_INIT}}
 <header class="topbar">
   <button class="snav-toggle" type="button" data-act="snav-toggle" aria-expanded="false" title="{{T:nav.menu}}" aria-label="{{T:nav.menu}}"><svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true"><path d="M2.5 4.5h11M2.5 8h11M2.5 11.5h11"/></svg></button>
   <nav class="crumbs" id="crumbs" aria-label="{{T:nav.breadcrumb}}"></nav>
-  <!-- 深浅色切换：常驻顶栏右端（有无侧栏都一样），图标与悬停说明由共享层的 themePaint 刷 -->
-  <button class="icon-btn theme-btn" type="button" data-act="theme-toggle" title="{{T:theme.to_dark}}" aria-label="{{T:theme.to_dark}}"></button>
+  <!-- 顶栏右端：用户名（只「我的」页露出，与铃铛同一条开关）+ 深浅色切换 + 通知铃铛。
+       整块靠 .topbar-right 的 margin-left:auto 贴右端 —— auto 边距只留这一处，别分给别处 -->
+  <div class="topbar-right">
+    <!-- 用户名排在图标之前；只在「我的」页脱出（初始 hidden，由 paintNotifSlot 开关） -->
+    <span class="top-name" id="top-name" hidden></span>
+    <!-- 深浅色切换：常驻顶栏右端（有无侧栏都一样），图标与悬停说明由共享层的 themePaint 刷 -->
+    <button class="icon-btn" type="button" data-act="theme-toggle" title="{{T:theme.to_dark}}" aria-label="{{T:theme.to_dark}}"></button>
+    <!-- 通知铃铛紧贴深浅色切换。管理端只在「我的」页露出它（`switchTab` 按当前分页开关这个槽），
+         所以别的管理页顶栏不留入口；红点仍会照常刷新，切回「我的」页即是准的。
+         槽自带 `style="display:none"` 初始态：开机停在概览时 `switchTab` 未必被调用，靠 CSS 兜底 -->
+    <span class="notif-slot" id="notif-slot" style="display:none">{{NOTIF_BELL}}</span>
+  </div>
   <!-- 无侧栏时（除「我的」外没有任何分页权限）这一组落在顶栏右侧 -->
   <div class="topbar-user" id="topbar-user" hidden>
     <button class="avatar" type="button" id="top-avatar" data-act="go-account" title="{{T:nav.account}}" aria-label="{{T:nav.account}}"></button>
@@ -789,6 +834,34 @@ ADMIN_BODY = r'''{{THEME_INIT}}
   </div>
 </div>
 
+<!-- ============ 设备 ============ -->
+<!-- 设备从「用户」里独立出来：二级菜单两项——设备总列表（按账号聚合）与设备签入审批 -->
+<div class="page" id="page-devices">
+  <div id="device-sub-list">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title"><h2>{{T:device.list}}</h2><div class="card-desc" id="dev-page-info">{{T:msg.loading}}</div></div>
+        <div class="acts">
+          <input class="input" id="dev-search" placeholder="{{T:device.search_ph}}" style="width:200px" oninput="devSearch()">
+          <button class="btn btn-sm" onclick="refreshDevices()">{{T:btn.refresh}}</button>
+        </div>
+      </div>
+      <div class="card-body" id="devices-area">{{T:msg.loading}}</div>
+    </div>
+  </div>
+  <div id="device-sub-approvals" style="display:none">
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title"><h2>{{T:device.approvals}}</h2><div class="card-desc" id="dsignin-page-info">{{T:msg.loading}}</div></div>
+        <div class="acts">
+          <button class="btn btn-sm" onclick="refreshDeviceSignins()">{{T:btn.refresh}}</button>
+        </div>
+      </div>
+      <div class="card-body" id="dsignin-area">{{T:msg.loading}}</div>
+    </div>
+  </div>
+</div>
+
 <!-- ============ 日志 ============ -->
 <div class="page" id="page-logs">
   <div class="page-head">
@@ -938,26 +1011,32 @@ ADMIN_BODY = r'''{{THEME_INIT}}
   </div>
 </div>
 
-<!-- ============ 设置（所有配置项的唯一入口） ============ -->
-<div class="page" id="page-config">
-  <div class="page-head">
-    <div class="acts">
-      <button class="btn btn-sm" onclick="cfgExport()">{{T:config.export}}</button>
-      <span class="file-pick">
-        <label class="btn btn-sm" for="cfg-import-file">{{T:config.import}}</label>
-        <input type="file" id="cfg-import-file" accept=".json,application/json" onchange="cfgImport()">
-      </span>
-      <button class="btn btn-sm" onclick="refreshConfig()">{{T:btn.refresh}}</button>
+<!-- ============ 设置（所有配置项的唯一入口，弹窗形态） ============ -->
+<!-- 设置不再是分页，而是一个弹窗：由侧栏栏脚的齿轮（set-enter）或顶栏右侧的同一入口打开。
+     这段 <template> 是惰性的（不渲染），openSettingsModal 取它的 innerHTML 注入弹窗——
+     左窄栏＝分类菜单（#set-menu，由 renderSetMenu 生成），右宽栏＝具体配置项（#cfg-body）。
+     容器 id 与设置在弹窗外的旧实现逐字一致，renderSetMenu / setSelect / refreshConfig
+     拿到的仍是同一批 id，无需改容器引用。 -->
+<template id="settings-tpl">
+  <div class="set-side">
+    <div class="set-menu" id="set-menu" aria-label="{{T:set.categories}}"></div>
+  </div>
+  <div class="set-main">
+    <div class="set-toolbar">
+      <button class="btn btn-sm" type="button" onclick="cfgExport()">{{T:config.export}}</button>
+      <button class="btn btn-sm" type="button" onclick="document.getElementById('cfg-import-file').click()">{{T:config.import}}</button>
+      <input type="file" id="cfg-import-file" accept=".json,application/json" onchange="cfgImport()" hidden>
+      <button class="btn btn-sm" type="button" onclick="refreshConfig()">{{T:btn.refresh}}</button>
+    </div>
+    <div class="set-scroll">
+      <div id="set-cfg">
+        <div class="set-head"><h2 id="set-title"></h2><span class="dim small" id="set-count"></span></div>
+        <div id="cfg-body">{{T:msg.loading}}</div>
+      </div>
+      <div id="set-about" hidden></div>
     </div>
   </div>
-  <div class="set-body">
-    <div id="set-cfg">
-      <div class="set-head"><h2 id="set-title"></h2><span class="dim small" id="set-count"></span></div>
-      <div id="cfg-body">{{T:msg.loading}}</div>
-    </div>
-    <div id="set-about" hidden></div>
-  </div>
-</div>
+</template>
 
 <!-- ============ 备份 ============ -->
 <div class="page" id="page-backup">

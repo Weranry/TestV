@@ -14,19 +14,22 @@ import datetime
 import hashlib
 import hmac
 import json
+import random
 import secrets
 
-from modules.database.core import _exec, _exec_many
+from modules.database.core import _exec, _exec_many, _delete_batched
 from modules.utils.timezone import utc_now_iso
 
 # 设备档案里允许被写回的列。白名单而不是黑名单：以后加列时不必回头审查每个写入点，
 # 而 `token_hash` / `account_id` 这类身份字段只能走专门的函数改，不许顺手 UPDATE。
-# `format` 不在其中：输出格式恒由 `palette` 推导（见 `_derived_format`），不接受外部直写。
+# `format` 不在其中：输出格式恒由「颜色降级值或设备上报的 palette」推导（见 `_derived_format`），
+# 不接受外部直写。`palette` 是设备上报值，`palette_override` 才是用户可改的降级选项。
 _DEVICE_UPDATABLE = {
-    'name', 'model', 'width', 'height', 'palette', 'firmware', 'enabled',
+    'name', 'model', 'width', 'height', 'palette', 'palette_override', 'firmware', 'enabled',
     'timezone', 'schedule_type', 'interval_seconds', 'daily_times', 'cron_expr',
     'next_run_at', 'last_seen_at', 'last_status', 'last_error', 'last_ip', 'token_hash',
-    'account_id',
+    'account_id', 'carousel_index', 'carousel_mode', 'battery_mv', 'rssi', 'wake_ms',
+    'refresh_count', 'offline_alerted',
 }
 
 
@@ -90,6 +93,15 @@ def get_device_by_token_hash(token_hash):
     return _exec('SELECT * FROM devices WHERE token_hash = ?', (token_hash,), fetch_one=True)
 
 
+def default_device_name(hw_uid):
+    """设备默认名 = 硬件指纹去掉分隔符（MAC `A0:B1:...` → `A0B1...`）。
+
+    设备侧一律用 MAC 当指纹，用户不填名字时直接拿它当名字：界面上不会出现一串
+    空白或「未命名设备」，而 MAC 本身又是排障时最常要的那条信息。
+    """
+    return ''.join(ch for ch in str(hw_uid or '') if ch.isalnum())[:64]
+
+
 def create_device(account_id, hw_uid, model='', width=0, height=0, palette='bw',
                   format='', firmware='', name=''):
     """新建设备档案。`account_id` 为 None 表示还没归属账号（配对完成前）。
@@ -101,7 +113,8 @@ def create_device(account_id, hw_uid, model='', width=0, height=0, palette='bw',
     return _exec(
         'INSERT INTO devices (account_id, name, model, hw_uid, width, height, palette,'
         ' format, firmware) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-        (account_id, name, model, hw_uid, int(width or 0), int(height or 0),
+        (account_id, name or default_device_name(hw_uid), model, hw_uid,
+         int(width or 0), int(height or 0),
          palette, _derived_format(palette, format), firmware or ''),
         commit=True,
     )
@@ -110,11 +123,21 @@ def create_device(account_id, hw_uid, model='', width=0, height=0, palette='bw',
 def update_device(device_id, **fields):
     """按白名单更新设备档案；没有可写的键就直接返回（未知键静默丢弃）
 
-    传了 `palette` 就顺带把 `format` 重算回去——格式恒由调色板推导，不接受外部直写。
+    传了 `palette`（设备上报）或 `palette_override`（用户降级）就顺带把 `format`
+    重算回去：格式恒由「降级值优先，否则上报值」推导，不接受外部直写。只传其一时
+    从库里补另一项，避免把用户的降级选择冲掉。
     """
     sets = {k: v for k, v in fields.items() if k in _DEVICE_UPDATABLE}
-    if 'palette' in sets:
-        sets['format'] = _derived_format(sets['palette'])
+    if 'palette' in sets or 'palette_override' in sets:
+        palette = sets.get('palette')
+        override = sets.get('palette_override')
+        if palette is None or override is None:
+            row = get_device(device_id) or {}
+            if palette is None:
+                palette = row.get('palette') or 'bw'
+            if override is None:
+                override = row.get('palette_override') or ''
+        sets['format'] = _derived_format(override or palette)
     if not device_id or not sets:
         return
     clauses = ', '.join(f'{k} = ?' for k in sets)
@@ -134,9 +157,12 @@ def touch_device(device_id, status='', error='', ip='', firmware=''):
 
     全是**诊断字段**：不驱动任何服务端任务，也不参与排期计算（间隔由纯函数现算后下发，
     计时器在设备上）。心跳时间只用来告诉面板「这台设备最后什么时候来过」。
+
+    回连同时把 `offline_alerted` 清零：离线告警只对「一次连续离线」发一次，
+    设备回来后再次掉线要能重新触发。
     """
     fields = {'last_seen_at': utc_now_iso(), 'last_status': status or '',
-              'last_error': error or '', 'last_ip': ip or ''}
+              'last_error': error or '', 'last_ip': ip or '', 'offline_alerted': 0}
     if firmware:
         fields['firmware'] = firmware
     update_device(device_id, **fields)
@@ -155,8 +181,36 @@ def count_devices_for_account(account_id):
     return int(row['cnt']) if row else 0
 
 
+def list_account_devices_overview():
+    """设备总列表（管理端「设备 → 设备总列表」）的数据源：每个账号一行。
+
+    设备数只算**自有**（共享进来的不占名额，与 `count_devices_for_account` 同口径）；
+    上限取自所属用户组，并在读取侧折算成 `-1 = 不限 / 0 = 禁止 / N = 最多 N 台`
+    （管理组恒为 -1，组不存在按 0），与 `group_max_devices` 同一套语义。
+    """
+    from modules.database.groups import is_admin_category
+    rows = _exec(
+        'SELECT a.id AS account_id, a.uid AS account_uid, a.name AS account_name, a.group_id AS group_id,'
+        ' g.name AS group_name, g.category AS group_category, g.max_devices AS group_max_devices,'
+        ' (SELECT COUNT(*) FROM devices d WHERE d.account_id = a.id) AS device_count'
+        ' FROM accounts a LEFT JOIN user_groups g ON g.id = a.group_id'
+        ' ORDER BY a.id',
+        fetch_all=True)
+    out = []
+    for row in rows:
+        item = dict(row)
+        if is_admin_category(row.get('group_category')):
+            item['max_devices'] = -1
+        elif row.get('group_id') is None:
+            item['max_devices'] = 0
+        else:
+            item['max_devices'] = int(row.get('group_max_devices') or 0)
+        out.append(item)
+    return out
+
+
 def delete_device(device_id):
-    """解除配对：连带删掉渲染项与配对会话（devices 上只有 tasks 有外键）"""
+    """解除配对：连带删掉渲染项与配对会话（遥测历史由外键级联清理）"""
     if not device_id:
         return
     _exec('DELETE FROM device_tasks WHERE device_id = ?', (device_id,), commit=True)
@@ -290,14 +344,20 @@ def bind_device_to_account(hw_uid, account_id, payload=None):
                              payload.get('width', 0), payload.get('height', 0),
                              payload.get('palette') or 'bw',
                              firmware=payload.get('firmware', ''))
-    update_device(device['id'], account_id=account_id, model=payload.get('model', ''),
-                  width=payload.get('width', 0), height=payload.get('height', 0),
-                  palette=payload.get('palette') or 'bw', firmware=payload.get('firmware', ''))
+    update_fields = dict(account_id=account_id, model=payload.get('model', ''),
+                         width=payload.get('width', 0), height=payload.get('height', 0),
+                         palette=payload.get('palette') or 'bw',
+                         firmware=payload.get('firmware', ''))
+    # 老档案（默认名为空）在认领时补齐成 MAC，与新建设备的口径一致
+    if not str(device.get('name') or '').strip():
+        update_fields['name'] = default_device_name(hw_uid)
+    update_device(device['id'], **update_fields)
     return device['id']
 
 
 def device_quota_error(account_id, hw_uid):
-    """用户组设备名额校验：超额时返回提示文案，否则 None；账号不存在抛 `AccessDeniedError`。
+    """用户组设备名额校验：放行返回 None，超额返回 `(取词键, 格式化参数)`；
+    账号不存在抛 `AccessDeniedError`。
 
     与 `group_max_evkeys` 同一套口径：-1 = 不限、0 = 禁止绑定、N = 最多 N 台（管理组
     折算成 -1，见 `group_max_devices`）。**已经属于本账号**的设备不重复占名额——
@@ -305,6 +365,10 @@ def device_quota_error(account_id, hw_uid):
 
     判定写在 store 里而不是路由里：`/device/pair` 与账号面「输入配对码认领」都要用它，
     两处各写一遍必然走偏，而且是「一边拒一边放」的那种走偏。
+
+    超额时回的是取词键而不是成品文案：中英切换归请求侧管，store 层不认语言。键跟着判定
+    一起放在这儿，三条调用路径的口径与措辞才不会有别的走法（0 上限得说「不允许绑定」，
+    不能念成「上限 0 台」）。
     """
     existing = get_device_by_hw_uid(hw_uid)
     if existing and existing.get('account_id') == account_id:
@@ -313,13 +377,15 @@ def device_quota_error(account_id, hw_uid):
     from modules.errors.errors import AccessDeniedError
     account = get_account_by_id(account_id)
     if not account:
-        raise AccessDeniedError('设备所属账号已被禁用或删除')
+        raise AccessDeniedError('device.err_owner_gone')
     limit = group_max_devices(account.get('group_id'))
     if limit == -1:
         return None
     used = count_devices_for_account(account_id)
     if used >= limit:
-        return f'当前用户组最多绑定 {limit} 台设备，请先解绑其它设备或联系管理员'
+        if limit <= 0:
+            return ('account.dev_no_bind', {})
+        return ('account.dev_limit_detail', {'cur': used, 'max': limit})
     return None
 
 
@@ -386,11 +452,12 @@ def format_pair_code(code):
     return f'{text[:4]}-{text[4:]}' if len(text) > 4 else text
 
 
-def create_pairing(hw_uid, payload, account_id=None, ttl_seconds=600):
+def create_pairing(hw_uid, payload, account_id=None, ttl_seconds=600, idempotency_key=''):
     """建一条配对会话，返回 `(pair_id, pair_code)`。
 
     顺带清掉早就过期的历史会话：本项目没有设备排期 worker（计时器在设备上），
     这类垃圾没有别的地方会清，靠每次新建时顺带删一次，量级恒定。
+    `idempotency_key` 由设备重试时带上，配合 `get_pairing_by_idempotency` 复用同一组码。
     """
     now = datetime.datetime.now(datetime.timezone.utc)
     expires = now + datetime.timedelta(seconds=int(ttl_seconds or 0))
@@ -399,12 +466,27 @@ def create_pairing(hw_uid, payload, account_id=None, ttl_seconds=600):
     pair_code = new_pair_code()
     _exec(
         'INSERT INTO device_pairings (id, hw_uid, pair_code, secret_hash, payload_json,'
-        ' account_id, status, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        ' account_id, status, idempotency_key, created_at, expires_at)'
+        ' VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         (pair_id, hw_uid, pair_code, hash_device_token(pair_code), _dumps(payload),
-         account_id, 'pending', utc_now_iso(), expires.isoformat().replace('+00:00', 'Z')),
+         account_id, 'pending', idempotency_key or '', utc_now_iso(),
+         expires.isoformat().replace('+00:00', 'Z')),
         commit=True,
     )
     return pair_id, pair_code
+
+
+def get_pairing_by_idempotency(hw_uid, idempotency_key):
+    """同一台设备 + 同一个幂等键的待认领会话；找不到或已过期返回 None。"""
+    if not hw_uid or not idempotency_key:
+        return None
+    row = _exec(
+        "SELECT * FROM device_pairings WHERE hw_uid = ? AND idempotency_key = ?"
+        " AND status = 'pending' ORDER BY created_at DESC LIMIT 1",
+        (hw_uid, idempotency_key), fetch_one=True)
+    if not row or is_pairing_expired(row):
+        return None
+    return row
 
 
 def get_pairing(pair_id):
@@ -506,6 +588,85 @@ def purge_expired_pairings(now=None, keep_seconds=86400):
           (cutoff.isoformat().replace('+00:00', 'Z'),), commit=True)
 
 
+# ======================== 设备签入审批 ========================
+# 关闭「自动加入」后，用户在网页输入配对码认领设备不再当场绑定，而是落一条待审批记录，
+# 管理员在「设备 → 设备签入审批」里批准（或拒绝）才生效。审批通过后仍走认领那套绑定
+# 动作（bind_device_to_account + attach_pairing_account + cancel_other_pairings，在路由层）。
+
+_SIGNIN_STATUSES = ('pending', 'approved', 'rejected')
+
+
+def create_signin(account_id, hw_uid, pair_id='', payload=None):
+    """创建一条待审批的签入记录，返回 signin_id。
+
+    同一账号 + 同一 hw_uid 已有 pending 时直接复用（幂等）：用户反复输码不该堆出一串重复
+    申请，管理员也不该面对同台设备的多条待办。
+    """
+    if not account_id or not hw_uid:
+        return 0
+    existing = _exec(
+        "SELECT id FROM device_signins WHERE account_id = ? AND hw_uid = ? AND status = 'pending'",
+        (account_id, hw_uid), fetch_one=True)
+    if existing:
+        return int(existing['id'])
+    return _exec(
+        'INSERT INTO device_signins (account_id, hw_uid, pair_id, payload_json)'
+        ' VALUES (?, ?, ?, ?)',
+        (account_id, hw_uid, pair_id or '', _dumps(payload or {})), commit=True)
+
+
+def get_signin(signin_id):
+    if not signin_id:
+        return None
+    return _exec('SELECT * FROM device_signins WHERE id = ?', (signin_id,), fetch_one=True)
+
+
+def list_pending_signins():
+    """待审批签入列表（按账号聚合所需字段）：新到排前头，并带账号名与设备示意名。"""
+    return _exec(
+        'SELECT s.*, a.uid AS account_uid, a.name AS account_name, g.name AS group_name,'
+        ' (SELECT COALESCE(NULLIF(d.name, ""), d.model) FROM devices d WHERE d.hw_uid = s.hw_uid)'
+        ' AS device_name'
+        ' FROM device_signins s'
+        ' LEFT JOIN accounts a ON a.id = s.account_id'
+        ' LEFT JOIN user_groups g ON g.id = a.group_id'
+        " WHERE s.status = 'pending' ORDER BY s.id DESC",
+        fetch_all=True)
+
+
+def count_pending_signins():
+    row = _exec("SELECT COUNT(*) AS cnt FROM device_signins WHERE status = 'pending'",
+                fetch_one=True)
+    return int(row['cnt']) if row else 0
+
+
+def set_signin_status(signin_id, status, note='', admin_name=''):
+    """置审批结果（仅 pending 可改，条件写避免两次审批互相覆盖）；返回是否写中。"""
+    if status not in _SIGNIN_STATUSES or not signin_id:
+        return False
+    rows = _exec(
+        "UPDATE device_signins SET status = ?, note = ?, admin_name = ?"
+        " WHERE id = ? AND status = 'pending'",
+        (status, note or '', admin_name or '', signin_id), commit=True, rowcount=True)
+    return bool(rows)
+
+
+def reject_pending_signins_for_device(hw_uid, note='', admin_name=''):
+    """把某台设备（按 hw_uid）所有待审批签入置为 rejected，返回条数。
+
+    删设备时必须调用：`device_signins` 没有 devices 外键，删设备后这些 pending 会按
+    hw_uid 残留，下一次批准又会按同一个 hw_uid 把设备「复活」出来。批量置 rejected
+    而不是逐条 `set_signin_status`（后者只改一条，需要先查 id 列表反而更绕）。
+    """
+    if not hw_uid:
+        return 0
+    rows = _exec(
+        "UPDATE device_signins SET status = 'rejected', note = ?, admin_name = ?"
+        " WHERE hw_uid = ? AND status = 'pending'",
+        (note or '', admin_name or '', hw_uid), commit=True, rowcount=True)
+    return int(rows or 0)
+
+
 # ======================== 渲染项 ========================
 
 def list_device_tasks(device_id, only_enabled=False):
@@ -524,11 +685,201 @@ def get_device_task(task_id):
 
 
 def current_device_task(device_id):
-    """当前该显示的那一项。地基版只取第一项：多视图轮播（按时段 / 顺序切换）留到下一轮，
-    这里先把「一台设备至少有一项可渲染」的链路打通。
+    """当前该显示的那一项：按 `sort_order` 轮播，游标存在 `devices.carousel_index`。
+
+    游标是「第几项」而不是任务 id：渲染项被删 / 重排后 id 会失效，按下标取模则永远落在
+    现有列表内。只有一项时恒取它（不推进游标，见 `advance_device_carousel`）。
+    随机轮播不读游标：每次取图都从启用项里随机挑一条。
     """
     rows = list_device_tasks(device_id, only_enabled=True)
-    return rows[0] if rows else None
+    if not rows:
+        return None
+    device = get_device(device_id)
+    if str((device or {}).get('carousel_mode') or 'sequence') == 'random':
+        return random.choice(rows)
+    try:
+        index = int((device or {}).get('carousel_index') or 0)
+    except (TypeError, ValueError):
+        index = 0
+    return rows[index % len(rows)]
+
+
+def advance_device_carousel(device_id):
+    """轮播推进一格（取图成功后调用）；返回下一项的序号。
+
+    取模写回而不是无限累加：库里的游标始终落在 `0..n-1`，重排 / 增删渲染项后
+    不需要额外校正，也不会把整数撑爆。只有一项时归零。
+    """
+    if not device_id:
+        return 0
+    device = get_device(device_id)
+    if str((device or {}).get('carousel_mode') or 'sequence') == 'random':
+        return int((device or {}).get('carousel_index') or 0)
+    rows = list_device_tasks(device_id, only_enabled=True)
+    if not rows:
+        update_device(device_id, carousel_index=0)
+        return 0
+    try:
+        current = int((device or {}).get('carousel_index') or 0)
+    except (TypeError, ValueError):
+        current = 0
+    nxt = (current + 1) % len(rows)
+    update_device(device_id, carousel_index=nxt)
+    return nxt
+
+
+def save_device_telemetry(device_id, battery_mv=0, rssi=0, wake_ms=0,
+                          refresh_count=0, firmware=''):
+    """落一条遥测：历史追加 + 设备档案上的快照列更新 + 记一次心跳。
+
+    快照列只为列表/详情直接读，不 join 历史表；历史表供以后画曲线与排查。
+    数值全部由路由层钳过范围，这里不再二次校验。
+    """
+    if not device_id:
+        return 0
+    row_id = _exec(
+        'INSERT INTO device_telemetry (device_id, battery_mv, rssi, wake_ms,'
+        ' refresh_count, firmware) VALUES (?, ?, ?, ?, ?, ?)',
+        (device_id, int(battery_mv or 0), int(rssi or 0), int(wake_ms or 0),
+         int(refresh_count or 0), firmware or ''),
+        commit=True,
+    )
+    fields = {'battery_mv': int(battery_mv or 0), 'rssi': int(rssi or 0),
+              'wake_ms': int(wake_ms or 0), 'refresh_count': int(refresh_count or 0)}
+    if firmware:
+        fields['firmware'] = firmware
+    update_device(device_id, **fields)
+    # 上报本身就是一次存活证据：没走 status/image 的设备也能把 last_seen 刷新、
+    # 把离线告警标记清掉。
+    touch_device(device_id, 'telemetry', '', '', firmware or '')
+    return row_id
+
+
+def list_device_telemetry(device_id, limit=20):
+    """某设备最近的遥测（新的在前），供详情弹窗展示历史。"""
+    if not device_id:
+        return []
+    try:
+        limit = max(1, min(int(limit or 20), 200))
+    except (TypeError, ValueError):
+        limit = 20
+    return _exec(
+        'SELECT * FROM device_telemetry WHERE device_id = ? ORDER BY id DESC LIMIT ?',
+        (device_id, limit), fetch_all=True)
+
+
+def trim_device_telemetry(device_id, keep=200):
+    """只保留某设备最近 N 条遥测，避免历史表无限膨胀（删除用子查询，一次一条语句）。"""
+    if not device_id:
+        return
+    try:
+        keep = max(1, int(keep or 200))
+    except (TypeError, ValueError):
+        keep = 200
+    _exec(
+        'DELETE FROM device_telemetry WHERE device_id = ? AND id NOT IN'
+        ' (SELECT id FROM device_telemetry WHERE device_id = ? ORDER BY id DESC LIMIT ?)',
+        (device_id, device_id, keep), commit=True)
+
+
+def prune_device_telemetry(days):
+    """删除超过保留期的遥测记录（0 = 不清理），返回删除条数。
+
+    与请求日志的保留期清理同一套分批语义：单条大 DELETE 会长时间占住全局锁。
+    """
+    try:
+        days = int(days or 0)
+    except (TypeError, ValueError):
+        return 0
+    if days <= 0:
+        return 0
+    return _delete_batched(
+        'DELETE FROM device_telemetry WHERE id IN ('
+        "SELECT id FROM device_telemetry WHERE created_at < datetime('now', ?) LIMIT ?)",
+        (f'-{days} days',),
+    )
+
+
+def set_device_last_image(device_id, path, etag, mime, name):
+    """记录最近一张成功图片的位置与 ETag，供渲染失败回退 / 304 复用。
+
+    这是一组派生字段，不放进 `_DEVICE_UPDATABLE`：面板/接口的普通「改设备」
+    不应该能改写它，否则回退会指向任意路径。
+    """
+    if not device_id:
+        return
+    _exec(
+        'UPDATE devices SET last_image_path = ?, last_image_etag = ?,'
+        ' last_image_mime = ?, last_image_name = ? WHERE id = ?',
+        (path or '', etag or '', mime or '', name or '', device_id), commit=True)
+
+
+def get_idempotent_response(idem_key, scope, ttl_seconds=86400):
+    """取一条未过期的幂等响应；没有/过期返回 None。
+
+    只缓存 register / pair-request 这类**不含令牌**的响应，所以可以直接存 JSON。
+    """
+    if not idem_key or not scope:
+        return None
+    row = _exec(
+        'SELECT response_json, created_at FROM device_idempotency'
+        ' WHERE idem_key = ? AND scope = ?', (idem_key, scope), fetch_one=True)
+    if not row:
+        return None
+    created = _parse_iso(row.get('created_at'))
+    if created is None:
+        return None
+    ttl = max(0, int(ttl_seconds or 0))
+    if ttl and (datetime.datetime.now(datetime.timezone.utc) - created).total_seconds() > ttl:
+        _exec('DELETE FROM device_idempotency WHERE idem_key = ?', (idem_key,), commit=True)
+        return None
+    try:
+        value = json.loads(row.get('response_json') or '{}')
+    except (TypeError, ValueError):
+        return None
+    return value if isinstance(value, dict) else None
+
+
+def save_idempotent_response(idem_key, scope, payload, ttl_seconds=86400):
+    """写入/覆盖幂等响应，并顺手清掉过期行（没有定时任务，借写入点做清理）。"""
+    if not idem_key or not scope:
+        return
+    now = datetime.datetime.now(datetime.timezone.utc)
+    ttl = max(0, int(ttl_seconds or 0))
+    if ttl:
+        cutoff = (now - datetime.timedelta(seconds=ttl)).isoformat().replace('+00:00', 'Z')
+        _exec('DELETE FROM device_idempotency WHERE created_at < ?', (cutoff,), commit=True)
+    _exec(
+        'INSERT OR REPLACE INTO device_idempotency (idem_key, scope, response_json, created_at)'
+        ' VALUES (?, ?, ?, ?)',
+        (idem_key, scope, _dumps(payload), utc_now_iso()), commit=True)
+
+
+def list_offline_devices(threshold_iso):
+    """判为离线、且本轮还没告过警的设备。
+
+    只算已配对（有令牌、有账号）、启用且**曾经上线过**的设备：从未上线的设备
+    `last_seen_at` 为空，算进离线会让刚创建的档案立刻报「掉线」。
+    """
+    if not threshold_iso:
+        return []
+    return _exec(
+        'SELECT d.*, a.name AS account_name FROM devices d'
+        ' LEFT JOIN accounts a ON a.id = d.account_id'
+        ' WHERE d.enabled = 1 AND d.account_id IS NOT NULL'
+        " AND d.token_hash <> '' AND d.last_seen_at IS NOT NULL"
+        ' AND d.last_seen_at < ? AND d.offline_alerted = 0 ORDER BY d.id',
+        (threshold_iso,), fetch_all=True)
+
+
+def mark_device_offline_alerted(device_id):
+    """标记本轮离线已告警；返回是否写中（并发下只有一个扫描者能拿到 True）。"""
+    if not device_id:
+        return False
+    rows = _exec(
+        'UPDATE devices SET offline_alerted = 1 WHERE id = ? AND offline_alerted = 0',
+        (device_id,), commit=True, rowcount=True)
+    return bool(rows)
 
 
 def create_device_task(device_id, plugin_name, route_path, name='', route_kind='view',

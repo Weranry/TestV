@@ -10,10 +10,11 @@
 - 返回值**永不**是 None 或负数：固件拿到空值会把深睡时长算成 0，变成忙轮询把后端打爆。
 """
 import datetime
+import random
 
 import config
 from modules.prerender.scheduler import _next_cron_time, parse_cron, parse_daily_times
-from modules.utils.timezone import now_in_timezone
+from modules.utils.timezone import convert_utc_to_local, now_in_timezone
 
 # 排期配置读不出来 / 非法时的兜底间隔（秒）。给一个明确的中等值，而不是 0 或 None：
 # 设备宁可十分钟后再问一次，也不能因为配置写坏就卡死或狂刷。
@@ -48,6 +49,67 @@ def _interval_seconds(device_row):
     except (TypeError, ValueError):
         return FALLBACK_INTERVAL_SECONDS
     return value if value > 0 else FALLBACK_INTERVAL_SECONDS
+
+
+def _number(value):
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _adaptive_seconds(device_row, seconds):
+    """按设备最近一次上报的电量 / 信号延长间隔。
+
+    - 电量 <= 0 表示设备没上报，不能当成「0 mV 快没电了」；
+    - RSSI 合法值是负数，0 同样表示没上报；
+    - 两个条件同时命中取较大系数，结果仍走 _clamp，不会突破上下限。
+    """
+    if seconds <= 0:
+        return seconds
+    factor = 1.0
+    battery = _number((device_row or {}).get('battery_mv'))
+    if battery > 0:
+        threshold = _number(getattr(config, 'DEVICE_LOW_BATTERY_MV', 0))
+        if threshold > 0 and battery <= threshold:
+            try:
+                factor = max(factor, float(getattr(config, 'DEVICE_LOW_BATTERY_SLEEP_FACTOR', 1.0)))
+            except (TypeError, ValueError):
+                pass
+    rssi = _number((device_row or {}).get('rssi'))
+    if rssi < 0:
+        threshold = _number(getattr(config, 'DEVICE_WEAK_RSSI_DBM', 0))
+        if threshold < 0 and rssi <= threshold:
+            try:
+                factor = max(factor, float(getattr(config, 'DEVICE_WEAK_RSSI_SLEEP_FACTOR', 1.0)))
+            except (TypeError, ValueError):
+                pass
+    if factor <= 1.0:
+        return _clamp(seconds)
+    return _clamp(int(round(seconds * factor)))
+
+
+def jitter_sleep_seconds(seconds):
+    """在服务端算出的间隔上加 ±N% 抖动，打散整点唤醒的尖峰。
+
+    只用于真正「睡多久」的下发值；`0`（立即取图）和配错时的兜底值不抖动。
+    抖动后仍按上下限钳制，避免把 60 秒抖到 57 秒。
+    """
+    try:
+        value = int(seconds)
+    except (TypeError, ValueError):
+        return FALLBACK_INTERVAL_SECONDS
+    if value <= 0:
+        return 0
+    try:
+        pct = float(getattr(config, 'DEVICE_SLEEP_JITTER_PCT', 0) or 0)
+    except (TypeError, ValueError):
+        pct = 0.0
+    if pct <= 0:
+        return _clamp(value)
+    pct = min(pct, 50.0)
+    factor = random.uniform(1 - pct / 100.0, 1 + pct / 100.0)
+    return _clamp(int(round(value * factor)))
 
 
 def _next_wall_time(device_row, kind, now):
@@ -89,16 +151,45 @@ def compute_sleep_seconds(device_row, now_local=None):
 
     kind = str(device_row.get('schedule_type') or 'interval').lower()
     if kind == 'interval':
-        return _clamp(_interval_seconds(device_row))
+        return _adaptive_seconds(device_row, _interval_seconds(device_row))
     if kind in ('daily', 'cron'):
         now = now_local or now_in_timezone(_tz_of(device_row))
         target = _next_wall_time(device_row, kind, now)
         if target is None:
-            return _clamp(FALLBACK_INTERVAL_SECONDS)
+            return _adaptive_seconds(device_row, FALLBACK_INTERVAL_SECONDS)
         delta = int((target - now).total_seconds())
         # 算出来的时刻不该已过去；真出现了（时钟被回拨等）就退到兜底间隔，绝不返回负数
-        return _clamp(delta if delta > 0 else FALLBACK_INTERVAL_SECONDS)
-    return _clamp(FALLBACK_INTERVAL_SECONDS)
+        return _adaptive_seconds(device_row, delta if delta > 0 else FALLBACK_INTERVAL_SECONDS)
+    return _adaptive_seconds(device_row, FALLBACK_INTERVAL_SECONDS)
+
+
+def compute_next_refresh_at(device_row):
+    """下次回连时刻的估算（UTC ISO 字符串）；从未上线返回 `''`。
+
+    设备是「取完图 → 按当次下发的秒数睡下去」，所以下一次 ≈ 上次回连时刻 + 当次会下发的
+    睡眠秒数。daily / cron 用**上次回连那一刻**去算，才对得上设备当时真正睡下的时长；
+    用「现在」算会把已经睡过去的那一段重复计进去，得到的时刻总是偏晚。
+    """
+    last_text = str((device_row or {}).get('last_seen_at') or '').strip()
+    if not last_text:
+        return ''
+    normalized = last_text.replace(' ', 'T')
+    if normalized[-1:] in ('Z', 'z'):
+        normalized = normalized[:-1] + '+00:00'
+    try:
+        last_utc = datetime.datetime.fromisoformat(normalized)
+    except ValueError:
+        return ''
+    if last_utc.tzinfo is None:
+        last_utc = last_utc.replace(tzinfo=datetime.timezone.utc)
+    last_local = convert_utc_to_local(last_utc, _tz_of(device_row))
+    if getattr(last_local, 'tzinfo', None) is not None:
+        last_local = last_local.replace(tzinfo=None)
+    seconds = compute_sleep_seconds(device_row, now_local=last_local)
+    if seconds <= 0:
+        seconds = _interval_seconds(device_row)
+    nxt = last_utc.astimezone(datetime.timezone.utc) + datetime.timedelta(seconds=seconds)
+    return nxt.isoformat().replace('+00:00', 'Z')
 
 
 def build_next_url(request, device_row=None):
