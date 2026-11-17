@@ -1,1 +1,0 @@
-"""Plugin template for eInkViews."""
