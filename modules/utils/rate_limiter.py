@@ -103,8 +103,8 @@ def _quota_scope(request):
     user_id = _account_id(request)
     if user_id is not None:
         return f'user:{user_id}'
-    # 与鉴权中间件同一口径：evkey 只从请求头取（query 传法已禁用）
-    evkey = request.headers.get('evkey')
+    # 与鉴权中间件同一口径：请求头优先，URL 查询参数兜底
+    evkey = request.headers.get('evkey') or request.query_params.get('evkey')
     if evkey:
         # 明文 evkey 不能作为 key 出进程：启用共享 Redis 时 key 名会原样发往远端，
         # 连接或实例被看到就等于泄露设备凭据。用定长 sha256 摘要做 key，既不可逆，

@@ -479,9 +479,9 @@ async def device_pair_request(request: Request):
     limited = await _rate(request, 'ip:' + client_ip(request))
     if limited is not None:
         return limited
-    # evkey 只从请求头取：配对请求也走同一条规则，避免凭据出现在 URL 与访问日志里。
-    # 旧固件仍拼 ?evkey=... 时只会退化成「无归属」的正常配对码，再走网页认领。
-    evkey = (request.headers.get('evkey') or '').strip()
+    # evkey 请求头优先，URL 查询参数兜底：老固件仍拼 ?evkey=... 时继续按「设备侧一次走完」
+    # 处理，不再退化成需要网页认领的无归属配对。
+    evkey = (request.headers.get('evkey') or request.query_params.get('evkey') or '').strip()
     account_id = None
     if evkey:
         from modules.database.accounts import get_account_by_evkey

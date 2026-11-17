@@ -162,9 +162,10 @@ async def check_auth(request: Request):
         if path == prefix or (prefix != '/' and path.startswith(prefix + '/')):
             return
 
-    # 只认请求头：URL 里的 evkey 会进浏览器历史、Referer 和反代访问日志，
-    # 等价于把长期凭据写进日志。旧客户端若仍拼 ?evkey=...，这里会按「缺少密钥」拒绝。
-    evkey = request.headers.get('evkey')
+    # 请求头优先，URL 查询参数兜底：老客户端、浏览器地址栏和部分固件仍直接拼
+    # `?evkey=...`，禁掉会让它们全部 401。两处同时出现时以请求头为准，行为不随
+    # 参数顺序变化。
+    evkey = request.headers.get('evkey') or request.query_params.get('evkey')
     if not evkey:
         raise AuthError('api.err_evkey_missing')
 

@@ -429,7 +429,7 @@ function adRender(){
         (r.plugin?'<span class="strong">'+esc(r.plugin)+'</span>':'<span class="dim">—</span>')+
         (kind?' <span class="dim small">'+kind+'</span>':'')+'</td>'+
       '<td class="col-dot">'+(r.need_evkey
-        ?dotHtml('dot-on',T('test.evkey_needed_tip','请求头需带 evkey（不再支持查询参数）'))
+        ?dotHtml('dot-on',T('test.evkey_needed_tip','需带 evkey（请求头或 URL 参数均可）'))
         :dotHtml('dot-off',T('test.free_auth_tip','白名单路径，无需 evkey')))+'</td>'+
       '<td><div class="acts">'+fill+
         '<button class="btn btn-sm" data-act="copy-text" data-copy="'+esc(r.path)+'">'+T('btn.copy','复制')+'</button>'+

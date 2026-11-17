@@ -71,7 +71,13 @@ def error_response(message, status_code, code=None, headers=None, extra=None):
     }
     if extra:
         content.update(extra)
-    return JSONResponse(status_code=status_code, content=content, headers=headers)
+    # 显式带 charset：JSON 默认只发 `application/json`，少数客户端（中文 Windows 下的
+    # 部分终端 / 代理）会按本地 GBK 猜编码，把 UTF-8 中文显示成「缂哄皯…」这类乱码。
+    # 错误体是所有调用方最先看到的一屏，不能依赖客户端默认值。
+    merged = {'Content-Type': 'application/json; charset=utf-8'}
+    if headers:
+        merged.update(headers)
+    return JSONResponse(status_code=status_code, content=content, headers=merged)
 
 
 def _message(request, exc):

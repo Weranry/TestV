@@ -59,7 +59,7 @@ data/einkviews.db-shm    # 共享内存索引
 - **不开缓存**：`modules/cache/cache.py` 被停用，字体每次实时加载，LRU 池一个条目都不写
 - **不起后台线程**：无统计刷盘线程、无请求日志中间件、无限流中间件、无管理面板路由
 - **首页走边缘**：`vercel.json` 把 `/` 直接指到静态文件 `public/pages/index.html`，该请求完全不经过 Python 函数（零冷启动）。这个文件是「Vercel 静态直出版」——凡是随环境变化的文案/入口，文件里存的都是 **Vercel 版**并用 `<!-- 名字:start -->…<!-- 名字:end -->` 锚点包住，所以静态直出时不会出现指向 `/login` 的死链（`/admin` 路由只在 `run.py` 下存在）。目前有两个锚点：副标题 `env-note`（Vercel 上显示「eInkViews is working on Vercel」，本地显示「eInkViews is working!」）与 footer `admin-entry`（静态文件里为空，本地才注入「登录 / 注册」）；本地 dev/prod 下 `/` 路由按 `template_routes._LOCAL_BLOCKS` 改写这些块
-- 鉴权走**单 key**：只需配置环境变量 `EVKEY`，请求头带上 `evkey` 即可（**不再接受 URL 查询参数**：query 会进浏览器历史、Referer 与反代日志，等同凭据泄漏；旧客户端请改为请求头）
+- 鉴权走**单 key**：只需配置环境变量 `EVKEY`，请求头带上 `evkey` 即可；也支持 URL 查询参数 `?evkey=...`（请求头优先，query 兜底，便于浏览器地址栏与老固件直接取图）
 - 图像处理全部使用 `io.BytesIO`，禁止本地临时文件写入
 - **装的是最小依赖集**：Vercel 构建只装 `requirements.txt`（`@vercel/python` 只认它），里面只有 Serverless 链路真正用得到的库——`cachetools` / `uvicorn` / `PyJWT` / `redis` 都在 `requirements-local.txt`；而且四者都只在真正需要时才被导入（`cachetools` 在字体与鉴权缓存的构建函数内、`uvicorn` 在 `run_core` 函数内、`PyJWT` 在会话签发/校验函数内、`redis` 在配置了 `REDIS_URL` 且建连时），Serverless 侧一律碰不到。这条保证由 `.trae/tests/test_app_smoke.py` 的 `ServerlessEntryTest` 在独立进程里断言（`app.py` 的导入链拿不到 redis / uvicorn / jwt / cachetools / `modules.run_core` / 本地后台线程模块），以后有人加一句模块级可选依赖导入就会红
 - 本地调试不要用 `app.py` 启动，也不要把依赖数据库/缓存的功能加进 Vercel 链路
